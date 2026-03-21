@@ -1,6 +1,4 @@
-# QSecure Radar — Supabase backend keys (never commit these)
-js/supabase-client.js
-
+﻿# QSecure Radar — Supabase backend keys (never commit these)
 # Node modules (for seed script)
 node_modules/
 package-lock.json
@@ -25,3 +23,4 @@ tmp/
 
 # PDF source (large binary)
 *.pdf
+
