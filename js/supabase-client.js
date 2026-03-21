@@ -1,8 +1,8 @@
-﻿/* supabase-client.js — QSecure Radar Live Backend
+/* supabase-client.js — QSecure Radar Live Backend
    Project: shinmrlkbaggbwpzhlcl | PSB Hackathon 2026 */
 
 const SUPABASE_URL      = 'https://shinmrlkbaggbwpzhlcl.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpY3MiOiJzdXBhYmFzZSIsInJlZiI6InNoaW5tcmxrYmFnZ2J3cHpobGNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI1NjQzOTQsImV4cCI6MjA1ODE0MDM5NH0.TcwMDk1OX0.xYRkNODUd3g-APqEGSx9yG6qg6YpCeziLGY-gqPYhA';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNoaW5tcmxrYmFnZ2J3cHpobGNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxMjQ5OTksImV4cCI6MjA4OTcwMDk5OX0.xYRrKNOdUD3g-APqEGSx9yG6qg6YpCeziIGY-gqPYhA';
 
 window.QSR_SUPABASE_READY = false;
 window.QSR_DB = null;
