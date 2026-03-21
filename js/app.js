@@ -7,13 +7,14 @@
 var ROUTES = {
   'home':            { title:'Dashboard',        init: initHome            },
   'asset-inventory': { title:'Asset Inventory',  init: initAssetInventory  },
-  'asset-discovery': { title:'Asset Discovery',  init: function(){ if(window.initAssetDiscovery) window.initAssetDiscovery(); } },
-  'cbom':            { title:'CBOM',             init: function(){ if(window.initCBOM) window.initCBOM(); } },
-  'pqc-posture':     { title:'Posture of PQC',   init: function(){ if(window.initPQCPosture) window.initPQCPosture(); } },
+  'asset-discovery': { title:'Asset Discovery',  init: function(){ var c=document.getElementById('main-content')||document.querySelector('.fade-in'); if(window.QSR&&window.QSR.pages&&window.QSR.pages.discovery) window.QSR.pages.discovery(document.getElementById('page-content')); } },
+  'cbom':            { title:'CBOM',             init: function(){ if(window.QSR&&window.QSR.pages&&window.QSR.pages.cbom) window.QSR.pages.cbom(document.getElementById('page-content')); } },
+  'pqc-posture':     { title:'Posture of PQC',   init: function(){ if(window.QSR&&window.QSR.pages&&window.QSR.pages.pqc) window.QSR.pages.pqc(document.getElementById('page-content')); } },
   'cyber-rating':    { title:'Cyber Rating',     init: function(){ if(window.initCyberRating) window.initCyberRating(); } },
   'reporting':       { title:'Reporting',        init: function(){ if(window.initReporting) window.initReporting(); } },
   'user-management': { title:'User Management',  init: function(){ if(window.initUserManagement) window.initUserManagement(); } },
-  'audit-log':       { title:'Audit Log',        init: function(){ if(window.initAuditLog) window.initAuditLog(); } }
+  'audit-log':       { title:'Audit Log',        init: function(){ if(window.QSR&&window.QSR.pages&&window.QSR.pages.auditlog) window.QSR.pages.auditlog(document.getElementById('page-content')); } },
+  'scanner':         { title:'TLS Scanner',      init: function(){ if(window.QSR&&window.QSR.pages&&window.QSR.pages.scanner) window.QSR.pages.scanner(document.getElementById('page-content')); } }
 };
 
 var PAGE_HTML = {
@@ -25,7 +26,8 @@ var PAGE_HTML = {
   'cyber-rating':    function(){ return window._cyberRatingPage  ? window._cyberRatingPage()  : '<p>Loading...</p>'; },
   'reporting':       function(){ return window._reportingPage    ? window._reportingPage()    : '<p>Loading...</p>'; },
   'user-management': function(){ return window._usersPage        ? window._usersPage()        : '<p>Loading...</p>'; },
-  'audit-log':       function(){ return window._auditLogPage     ? window._auditLogPage()     : '<p>Loading...</p>'; }
+  'audit-log':       function(){ return window._auditLogPage     ? window._auditLogPage()     : '<p>Loading...</p>'; },
+  'scanner':         function(){ return '<div id="scanner-mount"></div>'; }
 };
 
 function navigateTo(page) {
@@ -258,4 +260,6 @@ window.filterInventory = function() {
            (!r || a.risk === r) && (!c || a.cert === c);
   }));
 };
+
+
 

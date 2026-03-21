@@ -1,92 +1,116 @@
-﻿/* pages-pqc.js - PQC Posture Page (FR9, FR10, FR11, FR12) */
-/* QR Score 0-100 per SRS FR9 */
+﻿/* pages-pqc.js — Post-Quantum Cryptography Posture (FR9, FR10, FR11)
+   Live Supabase data */
 
-window._pqcPage = function() {
-  return '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">' +
-    '<div><div style="font-family:Rajdhani;font-size:22px;font-weight:700;color:#8b1a2f;">PQC Posture Assessment (FR9-FR12)</div>' +
-    '<div style="font-size:13px;color:#4a4a6a;">Quantum Risk Score: 0 (Critical) to 100 (Elite-PQC) | NIST PQC Guidelines</div></div>' +
-    '<button class="btn btn-primary" onclick="navigateTo(\'reporting\')">Generate Report (FR14)</button>' +
-    '</div>' +
+window.QSR = window.QSR || {};
+window.QSR.pages = window.QSR.pages || {};
 
-    /* Summary stats */
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px;" id="pqc-stats-strip">' +
-    [['Elite-PQC (76-100)','#48bb78','pqc-elite'],['Standard (51-75)','#4299e1','pqc-standard'],['Legacy (26-50)','#ecc94b','pqc-legacy'],['Critical (0-25)','#e53e3e','pqc-critical']].map(function(x){
-      return '<div style="background:rgba(255,255,255,0.9);border-radius:10px;padding:12px;border-left:4px solid '+x[1]+';"><div style="font-size:11px;color:#4a4a6a;text-transform:uppercase;">'+x[0]+'</div><div id="'+x[2]+'" style="font-family:Rajdhani;font-size:34px;font-weight:700;color:'+x[1]+';line-height:1;">—%</div></div>';
-    }).join('') + '</div>' +
+QSR.pages.pqc = async function(container) {
+  container.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Post-Quantum Cryptography Posture</h1>
+        <p class="page-subtitle">NIST PQC Standards Assessment • FR9, FR10, FR11</p>
+      </div>
+    </div>
 
-    '<div class="grid-2" style="margin-bottom:12px;">' +
-    '<div class="panel"><div class="panel-title">QR Score Distribution (FR9)</div><canvas id="chart-pqc-dist" data-h="140" style="width:100%;display:block;"></canvas></div>' +
-    '<div class="panel"><div class="panel-title">Application Status (FR10, FR11)</div><div style="display:flex;align-items:center;gap:14px;"><canvas id="chart-pqc-status" data-h="130" style="width:100%;display:block;"></canvas><div id="pqc-status-legend" style="flex:1;"></div></div></div>' +
-    '</div>' +
+    <!-- KPI Row -->
+    <div class="grid-4">
+      <div class="kpi-tile good"><div class="kpi-val" id="pqc-elite">—</div><div class="kpi-label">Elite-PQC Assets</div></div>
+      <div class="kpi-tile"><div class="kpi-val" id="pqc-std">—</div><div class="kpi-label">Standard</div></div>
+      <div class="kpi-tile warn"><div class="kpi-val" id="pqc-legacy">—</div><div class="kpi-label">Legacy</div></div>
+      <div class="kpi-tile danger"><div class="kpi-val" id="pqc-crit">—</div><div class="kpi-label">Critical</div></div>
+    </div>
 
-    '<div class="panel"><div class="panel-title">Asset-Level PQC Assessment Table (FR9, FR11)</div>' +
-    '<div class="table-wrap"><table class="data-table"><thead><tr><th>Asset</th><th>QR Score (0-100)</th><th>Classification (FR11)</th><th>PQC Support</th><th>Priority</th><th>Score Bar</th></tr></thead>' +
-    '<tbody id="pqc-asset-tbody"><tr><td colspan="6" style="text-align:center;padding:20px;color:#aaa;">Loading...</td></tr></tbody></table></div></div>' +
+    <!-- Chart + Info -->
+    <div class="grid-2" style="margin-top:18px;">
+      <div class="panel">
+        <div class="panel-title">PQC Readiness Distribution</div>
+        <canvas id="pqc-donut" data-h="200" style="width:100%;display:block;"></canvas>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Recommended PQC Algorithms</div>
+        <div class="pqc-recs" id="pqc-recs"></div>
+      </div>
+    </div>
 
-    /* Migration recommendations (FR12) */
-    '<div class="panel"><div class="panel-title">Migration Recommendations (FR12) - NIST Post-Quantum Standards</div>' +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;">' +
-    [
-      ['CRYSTALS-Kyber (ML-KEM)','#48bb78','Key Encapsulation Mechanism. Deploy for all TLS 1.3 endpoints. NIST FIPS 203. Priority: HIGH.'],
-      ['CRYSTALS-Dilithium (ML-DSA)','#4299e1','Lattice-based digital signature. Replace ECDSA/RSA signatures. NIST FIPS 204. Priority: HIGH.'],
-      ['SPHINCS+ (SLH-DSA)','#ed8936','Hash-based signature. Backup for code signing. NIST FIPS 205. Priority: MEDIUM.'],
-      ['Hybrid TLS Transition','#9f7aea','Run classical + PQC simultaneously during migration. Use X25519_Kyber768. Priority: IMMEDIATE.']
-    ].map(function(r) {
-      return '<div style="background:rgba(255,255,255,0.9);border-radius:10px;padding:14px;border-top:3px solid '+r[1]+';box-shadow:0 1px 6px rgba(0,0,0,0.06);">' +
-        '<div style="font-weight:700;font-family:Rajdhani;font-size:15px;color:'+r[1]+';margin-bottom:6px;">'+r[0]+'</div>' +
-        '<div style="font-size:12px;color:#4a4a6a;line-height:1.6;">'+r[2]+'</div></div>';
-    }).join('') +
-    '</div></div>';
-};
+    <!-- Asset Scores Table -->
+    <div class="panel" style="margin-top:18px;">
+      <div class="panel-title">Per-Asset Quantum Risk Score</div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead><tr>
+            <th>Asset</th><th>QR Score (0-100)</th><th>Status</th><th>PQC Support</th>
+          </tr></thead>
+          <tbody id="pqc-tbody">
+            <tr><td colspan="4" class="loading-cell">Loading PQC scores...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
 
-window.initPQCPosture = async function() {
-  var pqc = QSR.pqcPosture;
-  if (window.QSR_DataLayer) {
-    try { var live = await QSR_DataLayer.fetchPQCScores(); if (live && live.assets) pqc = live; } catch(e){}
-  }
+  /* Load data */
+  const dl = window.QSR_DataLayer;
+  const data = dl ? await dl.fetchPQCScores() : (window.QSR.pqcPosture || {});
+  const assets = data.assets || [];
 
-  /* Update stats */
-  var setEl = function(id, v){ var el = document.getElementById(id); if(el) el.textContent = v; };
-  setEl('pqc-elite',    (pqc.elitePct||0)+'%');
-  setEl('pqc-standard', (pqc.standardPct||0)+'%');
-  setEl('pqc-legacy',   (pqc.legacyPct||0)+'%');
-  setEl('pqc-critical', (pqc.criticalPct||0)+'%');
+  /* KPIs */
+  const elite    = assets.filter(a => (a.status||'').includes('Elite')).length;
+  const standard = assets.filter(a => a.status === 'Standard').length;
+  const legacy   = assets.filter(a => a.status === 'Legacy').length;
+  const critical = assets.filter(a => a.status === 'Critical').length;
+  document.getElementById('pqc-elite').textContent = elite;
+  document.getElementById('pqc-std').textContent   = standard;
+  document.getElementById('pqc-legacy').textContent = legacy;
+  document.getElementById('pqc-crit').textContent  = critical;
 
-  /* Charts */
-  QSR.drawBars('chart-pqc-dist', [
-    {label:'0-25 Critical',value:pqc.criticalPct||0, color:'#e53e3e'},
-    {label:'26-50 Legacy',  value:pqc.legacyPct||0,  color:'#ecc94b'},
-    {label:'51-75 Standard',value:pqc.standardPct||0,color:'#4299e1'},
-    {label:'76-100 Elite',  value:pqc.elitePct||0,   color:'#48bb78'}
-  ]);
-  var statusData = [
-    {label:'Elite-PQC', value:pqc.elitePct||0, color:'#48bb78'},
-    {label:'Standard',  value:pqc.standardPct||0, color:'#4299e1'},
-    {label:'Legacy',    value:pqc.legacyPct||0, color:'#ecc94b'},
-    {label:'Critical',  value:pqc.criticalPct||0, color:'#e53e3e'}
+  /* Donut chart */
+  QSR.drawDonut('pqc-donut', [
+    { label: 'Elite-PQC', value: elite,    color: '#48bb78' },
+    { label: 'Standard',  value: standard, color: '#4299e1' },
+    { label: 'Legacy',    value: legacy,   color: '#ed8936' },
+    { label: 'Critical',  value: critical, color: '#e53e3e' }
+  ], 'PQC Status', assets.length + ' Assets');
+
+  /* Recommendations */
+  const recs = [
+    { algo: 'CRYSTALS-Kyber (ML-KEM)', use: 'Key Encapsulation', status: 'NIST FIPS 203' },
+    { algo: 'CRYSTALS-Dilithium (ML-DSA)', use: 'Digital Signatures', status: 'NIST FIPS 204' },
+    { algo: 'FALCON (FN-DSA)', use: 'Compact Signatures', status: 'NIST FIPS 206' },
+    { algo: 'SPHINCS+ (SLH-DSA)', use: 'Hash-based Signatures', status: 'NIST FIPS 205' }
   ];
-  QSR.drawDonut('chart-pqc-status', statusData, (pqc.elitePct||0)+'%', 'Elite');
-  var leg = document.getElementById('pqc-status-legend');
-  if (leg) leg.innerHTML = statusData.map(function(s){ return '<div class="stat-row"><span class="stat-key" style="color:'+s.color+';font-weight:700;">'+s.label+'</span><span class="stat-val">'+s.value+'%</span></div>'; }).join('');
+  document.getElementById('pqc-recs').innerHTML = recs.map(r => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-color);">
+      <div>
+        <div style="font-weight:600;font-size:14px;">${r.algo}</div>
+        <div style="font-size:12px;color:#888;">${r.use}</div>
+      </div>
+      <span class="badge badge-ok">${r.status}</span>
+    </div>`).join('');
 
-  /* Asset table */
-  var tbody = document.getElementById('pqc-asset-tbody');
-  if (tbody && pqc.assets) {
-    var statusColors = {'Elite-PQC':'#48bb78',Standard:'#4299e1',Legacy:'#ecc94b',Critical:'#e53e3e'};
-    tbody.innerHTML = pqc.assets.map(function(a) {
-      var s = a.score || 0;
-      var c = statusColors[a.status] || '#888';
-      var priority = s < 26 ? 'P1 - Immediate' : s < 51 ? 'P2 - High' : s < 76 ? 'P3 - Medium' : 'P4 - Low';
-      var priColor  = s < 26 ? '#e53e3e' : s < 51 ? '#ed8936' : s < 76 ? '#ecc94b' : '#48bb78';
-      return '<tr>' +
-        '<td style="font-weight:600;">'+(a.name||'—')+'</td>' +
-        '<td><span style="font-family:Rajdhani;font-size:22px;font-weight:700;color:'+c+';">'+s+'</span><span style="font-size:10px;color:#aaa;">/100</span></td>' +
-        '<td><span class="badge" style="background:'+c+'22;color:'+c+';border:1px solid '+c+';">'+(a.status||'—')+'</span></td>' +
-        '<td><span class="badge '+(a.pqcSupport?'badge-valid':'badge-critical')+'">'+(a.pqcSupport?'Supported':'Not Ready')+'</span></td>' +
-        '<td style="font-weight:700;color:'+priColor+';font-size:12px;">'+priority+'</td>' +
-        '<td style="min-width:100px;"><div class="progress-bar"><div class="progress-fill" style="width:'+Math.min(s,100)+'%;background:'+c+';"></div></div></td>' +
-        '</tr>';
-    }).join('');
+  /* Score bar helper */
+  function scoreBar(score) {
+    const color = score >= 70 ? '#48bb78' : score >= 40 ? '#ed8936' : '#e53e3e';
+    return `<div style="display:flex;align-items:center;gap:10px;">
+      <div style="flex:1;background:#2d3748;border-radius:4px;height:8px;">
+        <div style="width:${score}%;background:${color};height:8px;border-radius:4px;transition:width 0.6s;"></div>
+      </div>
+      <span style="font-weight:700;color:${color};min-width:35px;">${score}/100</span>
+    </div>`;
+  }
+
+  /* Table */
+  const tbody = document.getElementById('pqc-tbody');
+  if (!assets.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#888;padding:20px;">No PQC score data found.</td></tr>';
+  } else {
+    const statusClass = { 'Elite-PQC':'badge-ok', 'Standard':'badge-info', 'Legacy':'badge-warn', 'Critical':'badge-danger' };
+    tbody.innerHTML = assets
+      .sort((a,b) => b.score - a.score)
+      .map(a => `<tr>
+        <td><strong>${a.name}</strong></td>
+        <td style="min-width:180px;">${scoreBar(a.score||0)}</td>
+        <td><span class="badge ${statusClass[a.status]||'badge-info'}">${a.status||'Unknown'}</span></td>
+        <td>${a.pqcSupport ? '<span class="badge badge-ok">YES</span>' : '<span class="badge badge-danger">NO</span>'}</td>
+      </tr>`).join('');
   }
 };
-

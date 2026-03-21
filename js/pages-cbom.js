@@ -1,115 +1,171 @@
-﻿/* pages-cbom.js - CBOM Page (FR8) */
-/* Cryptographic Bill of Materials */
+﻿/* pages-cbom.js — Cryptographic Bill of Materials (FR8)
+   Live Supabase data + CycloneDX 1.4 JSON export */
 
-window._cbomPage = function() {
-  var d = QSR.cbom;
-  return '<div style="background:linear-gradient(135deg,#1a1a2e,#2d2d5e);border-radius:14px;padding:20px;margin-bottom:14px;color:#fff;">' +
-    '<div style="font-family:Rajdhani;font-size:22px;font-weight:700;letter-spacing:1px;">Cryptographic Bill of Materials (FR8)</div>' +
-    '<div style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:14px;">CycloneDX CBOM Standard | CERT-IN Compliant</div>' +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;">' +
-    [
-      ['Applications Scanned', d.totalApps, '#60a5fa'],
-      ['Domains Surveyed',      d.sitesSurveyed.toLocaleString(), '#34d399'],
-      ['Active Certificates',   d.activeCerts, '#a78bfa'],
-      ['Weak Crypto Found',     d.weakCrypto, '#f87171'],
-      ['Cert Issues',           d.certIssues, '#fbbf24']
-    ].map(function(x) {
-      return '<div style="background:rgba(255,255,255,0.1);border-radius:10px;padding:12px;border-left:3px solid '+x[2]+';"><div style="font-size:10px;opacity:0.6;text-transform:uppercase;">'+x[0]+'</div><div style="font-family:Rajdhani;font-size:28px;font-weight:700;color:'+x[2]+';">'+x[1]+'</div></div>';
-    }).join('') +
-    '</div></div>' +
+window.QSR = window.QSR || {};
 
-    '<div class="grid-2" style="margin-bottom:12px;">' +
-    '<div class="panel"><div class="panel-title">Key Length Distribution (FR6, FR7)</div><canvas id="chart-cbom-keys" data-h="160" style="width:100%;display:block;"></canvas>' +
-    '<div style="margin-top:8px;font-size:12px;color:#e53e3e;font-weight:600;">* RSA &lt; 2048-bit is quantum-vulnerable (Shor algorithm, FR7)</div></div>' +
-    '<div class="panel"><div class="panel-title">Cipher Suite Usage (FR5)</div><div id="cbom-ciphers" style="padding:4px;"></div></div>' +
-    '</div>' +
+QSR.pages = QSR.pages || {};
 
-    '<div class="grid-2" style="margin-bottom:12px;">' +
-    '<div class="panel"><div class="panel-title">Certificate Authorities</div><div style="display:flex;gap:14px;align-items:center;"><canvas id="chart-cbom-ca" data-h="120" style="width:100%;display:block;"></canvas><div id="cbom-ca-legend" style="flex:1;"></div></div></div>' +
-    '<div class="panel"><div class="panel-title">TLS Protocol Distribution (FR5)</div><canvas id="chart-cbom-tls" data-h="130" style="width:100%;display:block;"></canvas></div>' +
-    '</div>' +
+QSR.pages.cbom = async function(container) {
+  container.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Cryptographic Bill of Materials</h1>
+        <p class="page-subtitle">CycloneDX 1.4 compliant • FR8 — CBOM Generation</p>
+      </div>
+      <button class="btn-export" id="cbom-export-btn" onclick="QSR.exportCBOM()">
+        &#8659; Export CycloneDX JSON
+      </button>
+    </div>
 
-    '<div class="panel"><div class="panel-title">Per-Application CBOM Details</div>' +
-    '<div class="table-wrap"><table class="data-table"><thead><tr><th>Application</th><th>Key Length</th><th>Cipher Suite</th><th>Certificate Authority</th><th>TLS Version</th><th>Quantum Risk</th></tr></thead>' +
-    '<tbody id="cbom-app-tbody"></tbody></table></div>' +
-    '<div style="margin-top:12px;display:flex;gap:8px;">' +
-    '<button class="btn btn-primary" onclick="exportCBOM()">Export CBOM (CycloneDX JSON)</button>' +
-    '<button class="btn btn-outline" onclick="navigateTo(\'reporting\')">Include in Report (FR14)</button>' +
-    '</div></div>';
+    <!-- KPI Row -->
+    <div class="grid-4" id="cbom-kpis">
+      <div class="kpi-tile"><div class="kpi-val" id="k-apps">—</div><div class="kpi-label">Applications</div></div>
+      <div class="kpi-tile warn"><div class="kpi-val" id="k-weak">—</div><div class="kpi-label">Weak Keys</div></div>
+      <div class="kpi-tile good"><div class="kpi-val" id="k-certs">—</div><div class="kpi-label">Active Certs</div></div>
+      <div class="kpi-tile danger"><div class="kpi-val" id="k-issues">—</div><div class="kpi-label">Cert Issues</div></div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="grid-2" style="margin-top:18px;">
+      <div class="panel">
+        <div class="panel-title">Key Length Distribution</div>
+        <canvas id="chart-keylength" data-h="180" style="width:100%;display:block;"></canvas>
+      </div>
+      <div class="panel">
+        <div class="panel-title">TLS Protocol Versions</div>
+        <canvas id="chart-tls" data-h="180" style="width:100%;display:block;"></canvas>
+      </div>
+    </div>
+
+    <!-- Per-App CBOM Table -->
+    <div class="panel" style="margin-top:18px;">
+      <div class="panel-title">Per-Application Cryptographic Inventory</div>
+      <div style="overflow-x:auto;">
+        <table class="data-table" id="cbom-table">
+          <thead><tr>
+            <th>Application</th><th>Key Length</th><th>Cipher Suite</th>
+            <th>Certificate Authority</th><th>TLS Version</th><th>Risk</th>
+          </tr></thead>
+          <tbody id="cbom-tbody"><tr><td colspan="6" class="loading-cell">Loading CBOM data...</td></tr></tbody>
+        </table>
+      </div>
+    </div>`;
+
+  /* Load data */
+  const dl = window.QSR_DataLayer;
+  const cbom = dl ? await dl.fetchCBOM() : (window.QSR.cbom || {});
+  const perApp = cbom.perApp || [];
+
+  /* KPI */
+  document.getElementById('k-apps').textContent   = cbom.totalApps   || perApp.length || '—';
+  document.getElementById('k-weak').textContent   = cbom.weakCrypto  || '—';
+  document.getElementById('k-certs').textContent  = cbom.activeCerts || perApp.length || '—';
+  document.getElementById('k-issues').textContent = cbom.certIssues  || '—';
+
+  /* Key length chart */
+  const keyMap = {};
+  perApp.forEach(p => { const k = p.keyLen||'Unknown'; keyMap[k]=(keyMap[k]||0)+1; });
+  const keyColors = {'RSA-1024':'#e53e3e','1024-bit':'#e53e3e','RSA-2048':'#ed8936','2048-bit':'#ed8936','RSA-4096':'#48bb78','4096-bit':'#48bb78'};
+  QSR.drawBars('chart-keylength', Object.entries(keyMap).map(([l,v])=>({ label:l, value:v, color:keyColors[l]||'#4299e1' })));
+
+  /* TLS version chart */
+  const tlsMap = {};
+  perApp.forEach(p => { const t = p.tls||'Unknown'; tlsMap[t]=(tlsMap[t]||0)+1; });
+  const tlsColors = {'1.0':'#e53e3e','1.1':'#ed8936','1.2':'#4299e1','1.3':'#48bb78'};
+  QSR.drawBars('chart-tls', Object.entries(tlsMap).map(([l,v])=>({ label:'TLS '+l, value:v, color:tlsColors[l]||'#a0aec0' })));
+
+  /* Risk badge helper */
+  function riskBadge(keyLen, tls) {
+    if (keyLen === 'RSA-1024' || keyLen === '1024-bit' || tls === '1.0') return '<span class="badge badge-danger">Critical</span>';
+    if (tls === '1.2') return '<span class="badge badge-warn">Medium</span>';
+    return '<span class="badge badge-ok">Low</span>';
+  }
+
+  /* Table */
+  const tbody = document.getElementById('cbom-tbody');
+  if (!perApp.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#888;padding:20px;">No CBOM data found. Run a scan first.</td></tr>';
+  } else {
+    tbody.innerHTML = perApp.map(p => `
+      <tr>
+        <td><strong>${p.app||'—'}</strong></td>
+        <td><code>${p.keyLen||'—'}</code></td>
+        <td style="font-size:12px;max-width:200px;word-break:break-all;">${p.cipher||'—'}</td>
+        <td>${p.ca||'—'}</td>
+        <td>${p.tls||'—'}</td>
+        <td>${riskBadge(p.keyLen, p.tls)}</td>
+      </tr>`).join('');
+  }
+
+  /* Store for export */
+  window._cbomData = { cbom, perApp };
 };
 
-window.initCBOM = async function() {
-  var d = QSR.cbom;
-  if (window.QSR_DataLayer) {
-    try { var live = await QSR_DataLayer.fetchCBOM(); if (live) d = live; } catch(e){}
-  }
+/* ── CycloneDX 1.4 JSON Export ── */
+QSR.exportCBOM = function() {
+  const { cbom, perApp } = window._cbomData || { cbom:{}, perApp:[] };
+  const now = new Date().toISOString();
 
-  QSR.drawBars('chart-cbom-keys', d.keyLengths || []);
-  QSR.drawDonut('chart-cbom-ca', d.certAuthorities || [], 'CAs', 'Cert');
-
-  /* Cipher bars */
-  var cipherEl = document.getElementById('cbom-ciphers');
-  if (cipherEl && d.cipherUsage) {
-    var max = Math.max.apply(null, d.cipherUsage.map(function(c){ return c.count; }));
-    cipherEl.innerHTML = d.cipherUsage.map(function(c) {
-      var pct = Math.round(c.count/max*100);
-      var weak = c.cipher.includes('WEAK') || c.cipher.includes('RC4') || c.cipher.includes('CBC');
-      return '<div class="progress-bar-wrap"><div class="progress-label"><span style="font-weight:600;color:' + (weak?'#e53e3e':'#1a1a2e') + ';">' + c.cipher + (weak?' (Vulnerable)':'') + '</span><span>' + c.count + '</span></div>' +
-        '<div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%;background:'+(weak?'#e53e3e':'#4299e1')+';"></div></div></div>';
-    }).join('');
-  }
-
-  /* TLS chart */
-  QSR.drawBars('chart-cbom-tls', (d.encriptionProtocols||[]).map(function(p){ return { label:p.label, value:p.value, color:p.color }; }));
-
-  /* CA legend */
-  var caLeg = document.getElementById('cbom-ca-legend');
-  if (caLeg && d.certAuthorities) {
-    caLeg.innerHTML = d.certAuthorities.map(function(ca) {
-      return '<div class="stat-row"><span class="stat-key"><span style="width:10px;height:10px;background:'+ca.color+';display:inline-block;border-radius:50%;margin-right:6px;"></span>'+ca.name+'</span><span class="stat-val">'+ca.count+'</span></div>';
-    }).join('');
-  }
-
-  /* CBOM table */
-  var tbody = document.getElementById('cbom-app-tbody');
-  if (tbody && (d.perApp||[]).length) {
-    tbody.innerHTML = d.perApp.map(function(r) {
-      var weakKey = (r.keyLength||r.key_length||'').includes('1024');
-      var weakTls = (r.tls||r.tls_version||'') === '1.0';
-      var risk = (weakKey || weakTls) ? 'High' : 'Low';
-      var riskCls = weakKey || weakTls ? 'badge-high' : 'badge-low';
-      return '<tr>' +
-        '<td style="font-weight:600;">'+(r.app||'—')+'</td>' +
-        '<td style="color:'+(weakKey?'#e53e3e':'#48bb78')+';font-weight:700;">'+(r.keyLength||r.key_length||'—')+(weakKey?' &#9888;':'')+'</td>' +
-        '<td style="font-size:12px;">'+(r.cipher||'—')+'</td>' +
-        '<td>'+(r.ca||'—')+'</td>' +
-        '<td style="color:'+(weakTls?'#e53e3e':'#48bb78')+';font-weight:700;">'+(r.tls||r.tls_version||'—')+'</td>' +
-        '<td><span class="badge '+riskCls+'">'+risk+'</span></td>' +
-        '</tr>';
-    }).join('');
-  }
-};
-
-window.exportCBOM = function() {
-  var cbomJson = {
-    bomFormat: 'CycloneDX', specVersion: '1.4', version: 1,
-    metadata: { timestamp: new Date().toISOString(), component: { name:'PNB Internet Banking', version:'1.0', type:'application' } },
-    components: (QSR.cbom.perApp||[]).map(function(r, i) {
-      return {
-        'bom-ref': 'app-' + (i+1), type: 'library', name: r.app,
-        cryptoProperties: {
-          assetType: 'tls', algorithm: r.cipher, keyLength: r.keyLength || r.key_length,
-          tlsVersion: r.tls || r.tls_version, certificateAuthority: r.ca,
-          quantumVulnerable: (r.keyLength||'').includes('1024') || (r.tls||'') === '1.0'
+  const cyclonedx = {
+    "bomFormat": "CycloneDX",
+    "specVersion": "1.4",
+    "version": 1,
+    "serialNumber": "urn:uuid:" + crypto.randomUUID(),
+    "metadata": {
+      "timestamp": now,
+      "tools": [{ "vendor": "QSecure Radar", "name": "CBOM Generator", "version": "1.0.0" }],
+      "component": {
+        "type": "application",
+        "name": "Punjab National Bank — Internet Banking Infrastructure",
+        "version": "2024.1",
+        "description": "PSB Hackathon 2026 — Post-Quantum Cryptographic Assessment"
+      }
+    },
+    "components": perApp.map((p, i) => ({
+      "type": "cryptographic-asset",
+      "bom-ref": "crypto-" + (i+1),
+      "name": p.app || ("Component-" + (i+1)),
+      "cryptoProperties": {
+        "assetType": "certificate",
+        "algorithmProperties": {
+          "primitive": "asymmetric-encryption",
+          "parameterSetIdentifier": p.keyLen || "RSA-2048",
+          "executionEnvironment": "software-plain-ram"
+        },
+        "certificateProperties": {
+          "subjectName": p.app,
+          "issuerName": p.ca || "DigiCert Inc",
+          "notValidBefore": "2024-01-01T00:00:00Z",
+          "notValidAfter":  "2025-12-31T23:59:59Z",
+          "signatureAlgorithm": p.cipher || "SHA256withRSA",
+          "certificateFormat": "X.509"
         }
-      };
-    })
+      },
+      "relatedCryptoMaterialProperties": {
+        "type": "private-key",
+        "size": parseInt((p.keyLen||'2048').replace(/[^0-9]/g,'')) || 2048,
+        "algorithmRef": "crypto-" + (i+1)
+      }
+    })),
+    "dependencies": [],
+    "vulnerabilities": perApp
+      .filter(p => p.keyLen === 'RSA-1024' || p.keyLen === '1024-bit' || p.tls === '1.0')
+      .map((p, i) => ({
+        "bom-ref": "vuln-" + (i+1),
+        "id": "PQC-RISK-" + String(i+1).padStart(3,'0'),
+        "source": { "name": "NIST FIPS 140-3", "url": "https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.140-3.pdf" },
+        "ratings": [{ "source": { "name": "QSecure Radar" }, "score": 9.1, "severity": "critical", "method": "CVSSv3" }],
+        "description": `Quantum-vulnerable cryptography detected: ${p.keyLen} key in ${p.app}. Susceptible to Shor's algorithm.`,
+        "recommendation": "Migrate to CRYSTALS-Kyber (ML-KEM) for key exchange and CRYSTALS-Dilithium (ML-DSA) for signatures.",
+        "affects": [{ "ref": p.app }]
+      }))
   };
-  var blob = new Blob([JSON.stringify(cbomJson, null, 2)], {type:'application/json'});
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'PNB_CBOM_CycloneDX_' + new Date().toISOString().slice(0,10) + '.json';
-  a.click();
-  if(window.QSR_DataLayer) { var u = JSON.parse(sessionStorage.getItem('qsr_user')||'{}'); QSR_DataLayer.logScanEvent('CBOM_EXPORTED'); }
-};
 
+  const blob = new Blob([JSON.stringify(cyclonedx, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'pnb-cbom-cyclonedx-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  alert('CycloneDX 1.4 JSON exported successfully!');
+};
