@@ -1,0 +1,246 @@
+/* ============================================================
+   Login Page Styles — QSecure Radar
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Exo+2:wght@300;400;500;600;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: 'Exo 2', sans-serif; overflow: hidden; }
+
+body {
+  background: #1a0510;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Top Institution Bar ──────────────────────────────────── */
+.inst-bar {
+  background: #fff;
+  padding: 8px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+.inst-logo {
+  height: 44px;
+  object-fit: contain;
+}
+.inst-divider {
+  width: 1px;
+  height: 40px;
+  background: #ddd;
+}
+
+/* ── Main Login Card ──────────────────────────────────────── */
+.login-main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+.login-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #3d0010 0%, #6b0f22 30%, #a01e35 55%, #d4861e 80%, #f5a623 100%);
+  z-index: 0;
+}
+
+.login-bg-img {
+  position: absolute;
+  inset: 0;
+  background: url('../assets/bg-circuit.svg') center/cover;
+  opacity: 0.12;
+  z-index: 1;
+}
+
+.login-left {
+  flex: 0 0 42%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px 52px;
+  position: relative;
+  z-index: 10;
+}
+
+.login-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 10;
+  text-align: center;
+  padding: 40px;
+}
+
+/* ── Login Form ──────────────────────────────────────────── */
+.login-form-label {
+  font-size: 14px;
+  color: rgba(255,255,255,0.75);
+  margin-bottom: 6px;
+  display: block;
+  font-weight: 500;
+}
+
+.login-input-wrap { margin-bottom: 20px; }
+
+.login-input {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(255,255,255,0.12);
+  border: 1.5px solid rgba(255,255,255,0.3);
+  border-radius: 8px;
+  font-size: 16px;
+  color: #fff;
+  outline: none;
+  transition: 0.2s;
+  font-family: 'Exo 2', sans-serif;
+}
+.login-input::placeholder { color: rgba(255,255,255,0.5); }
+.login-input:focus { border-color: #f5a623; background: rgba(255,255,255,0.18); box-shadow: 0 0 0 3px rgba(245,166,35,0.25); }
+
+.forgot-link {
+  display: block;
+  text-align: right;
+  color: rgba(255,255,255,0.65);
+  font-size: 13px;
+  margin-top: 4px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.forgot-link:hover { color: #f5a623; }
+
+.login-btn {
+  width: 100%;
+  padding: 14px;
+  background: #f5a623;
+  border: none;
+  border-radius: 8px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: 0.2s;
+  margin-top: 8px;
+  box-shadow: 0 4px 16px rgba(245,166,35,0.4);
+}
+.login-btn:hover { background: #e8930a; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(245,166,35,0.5); }
+.login-btn:active { transform: none; }
+
+/* ── Right Panel ──────────────────────────────────────────── */
+.hackathon-title {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 42px;
+  font-weight: 700;
+  color: #f5c842;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+  line-height: 1.1;
+  margin-bottom: 6px;
+  letter-spacing: 2px;
+}
+.hackathon-sub {
+  font-size: 18px;
+  color: rgba(255,255,255,0.85);
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+.hackathon-name {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 38px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+  line-height: 1.15;
+  margin-bottom: 8px;
+}
+.hackathon-tagline {
+  font-size: 20px;
+  color: rgba(255,255,255,0.8);
+  margin-bottom: 28px;
+  font-weight: 500;
+  letter-spacing: 1px;
+}
+
+/* Divider line */
+.hackathon-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px auto 18px;
+  width: 80%;
+}
+.hackathon-divider::before, .hackathon-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,0.35);
+}
+.hackathon-dot { color: rgba(255,255,255,0.5); font-size: 12px; }
+
+.pnb-shield-img { height: 130px; filter: drop-shadow(0 4px 16px rgba(0,0,0,0.5)); }
+
+/* ── Footer Bar ───────────────────────────────────────────── */
+.login-footer {
+  background: rgba(0,0,0,0.4);
+  padding: 8px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: rgba(255,255,255,0.45);
+  z-index: 10;
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* ── Error message ────────────────────────────────────────── */
+.login-error {
+  color: #fca5a5;
+  font-size: 13px;
+  margin-bottom: 8px;
+  display: none;
+}
+.login-error.show { display: block; }
+
+/* ── MFA Overlay ──────────────────────────────────────────── */
+.mfa-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  display: none;
+}
+.mfa-overlay.show { display: flex; }
+.mfa-card {
+  background: #1e1e2e;
+  border: 2px solid #f5a623;
+  border-radius: 12px;
+  padding: 36px 40px;
+  text-align: center;
+  max-width: 380px;
+  width: 90%;
+}
+.mfa-card h2 { font-family: 'Rajdhani', sans-serif; font-size: 26px; color: #f5a623; margin-bottom: 8px; }
+.mfa-card p { color: rgba(255,255,255,0.65); font-size: 14px; margin-bottom: 20px; }
+.mfa-input {
+  width: 100%;
+  padding: 12px;
+  background: rgba(255,255,255,0.08);
+  border: 1.5px solid rgba(255,255,255,0.25);
+  border-radius: 8px;
+  font-size: 24px;
+  color: #fff;
+  text-align: center;
+  letter-spacing: 8px;
+  outline: none;
+  margin-bottom: 16px;
+}
+.mfa-input:focus { border-color: #f5a623; }

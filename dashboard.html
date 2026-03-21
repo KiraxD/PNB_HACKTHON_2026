@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QSecure Radar | PSB Hackathon 2026</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <!-- External Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <!-- App Core -->
+  <script src="js/supabase-client.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/data-layer.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/network-graph.js"></script>
+  <!-- Page Modules -->
+  <script src="js/pages-discovery.js"></script>
+  <script src="js/pages-cbom.js"></script>
+  <script src="js/pages-pqc.js"></script>
+  <script src="js/pages-cyber-rating.js"></script>
+  <script src="js/pages-reporting.js"></script>
+  <script src="js/pages-users.js"></script>
+  <script src="js/pages-auditlog.js"></script>
+  <!-- SPA Router -->
+  <script src="js/app.js"></script>
+  <style>
+    /* Connection status pill */
+    #db-pill {
+      display:inline-flex; align-items:center; gap:6px;
+      padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600;
+      background:rgba(0,0,0,0.12); color:rgba(255,255,255,0.7);
+      border:1px solid rgba(255,255,255,0.2); flex-shrink:0;
+    }
+    #db-pill.connected { background:rgba(72,187,120,0.2); color:#48bb78; border-color:#48bb78; }
+    #db-pill.demo      { background:rgba(236,201,75,0.2);  color:#ecc94b; border-color:#ecc94b; }
+    .db-dot { width:7px; height:7px; border-radius:50%; background:currentColor; animation:pulse 2s infinite; }
+  </style>
+</head>
+<body>
+
+  <!-- Auth guard (FR3 — Zero Trust) -->
+  <script>
+    (function() {
+      var u = sessionStorage.getItem('qsr_user');
+      if (!u) { window.location.href = 'index.html'; return; }
+      try {
+        var user = JSON.parse(u);
+        window._QSR_USER = user;
+      } catch(e) { window.location.href = 'index.html'; }
+    })();
+  </script>
+
+  <div class="layout">
+
+    <!-- ── Sidebar ──────────────────────────────────────────── -->
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-nav" id="sidebar-nav">
+        <div class="nav-item active" data-page="home" onclick="navigateTo('home')">
+          <span class="nav-icon">&#127968;</span>
+          <span class="nav-label">Home</span>
+        </div>
+        <div class="nav-item" data-page="asset-inventory" onclick="navigateTo('asset-inventory')">
+          <span class="nav-icon">&#128301;</span>
+          <span class="nav-label">Asset Inventory</span>
+        </div>
+        <div class="nav-item" data-page="asset-discovery" onclick="navigateTo('asset-discovery')">
+          <span class="nav-icon">&#127963;</span>
+          <span class="nav-label">Asset Discovery</span>
+        </div>
+        <div class="nav-item" data-page="cbom" onclick="navigateTo('cbom')">
+          <span class="nav-icon">&#128220;</span>
+          <span class="nav-label">CBOM</span>
+        </div>
+        <div class="nav-item" data-page="pqc-posture" onclick="navigateTo('pqc-posture')">
+          <span class="nav-icon">&#9889;</span>
+          <span class="nav-label">Posture of PQC</span>
+        </div>
+        <div class="nav-item" data-page="cyber-rating" onclick="navigateTo('cyber-rating')">
+          <span class="nav-icon">&#11088;</span>
+          <span class="nav-label">Cyber Rating</span>
+        </div>
+        <div class="nav-item" data-page="reporting" onclick="navigateTo('reporting')">
+          <span class="nav-icon">&#128202;</span>
+          <span class="nav-label">Reporting</span>
+        </div>
+
+        <!-- Divider -->
+        <div style="border-top:1px solid rgba(255,255,255,0.12);margin:10px 16px;"></div>
+
+        <!-- Admin-only pages (shown/hidden by role FR2) -->
+        <div class="nav-item admin-only" data-page="user-management" onclick="navigateTo('user-management')" style="display:none;">
+          <span class="nav-icon">&#128101;</span>
+          <span class="nav-label">User Management</span>
+        </div>
+        <div class="nav-item" data-page="audit-log" onclick="navigateTo('audit-log')">
+          <span class="nav-icon">&#128203;</span>
+          <span class="nav-label">Audit Log</span>
+        </div>
+      </div>
+
+      <!-- Sidebar bottom: user info + logout -->
+      <div style="padding:14px 16px;border-top:1px solid rgba(255,255,255,0.15);margin-top:auto;">
+        <div style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:2px;" id="sidebar-user-name">Loading...</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.35);margin-bottom:4px;" id="sidebar-role-label">Role: —</div>
+        <div id="db-pill" title="Database connection status">
+          <span class="db-dot"></span><span id="db-pill-text">Checking DB...</span>
+        </div>
+        <div onclick="doLogout()" style="cursor:pointer;color:rgba(255,255,255,0.55);font-size:13px;font-weight:600;transition:0.2s;margin-top:10px;" onmouseover="this.style.color='#f5a623'" onmouseout="this.style.color='rgba(255,255,255,0.55)'">
+          &larr; Logout
+        </div>
+      </div>
+    </nav>
+
+    <!-- ── Main Wrapper ──────────────────────────────────────── -->
+    <div class="main-wrapper">
+
+      <!-- Header -->
+      <div class="header">
+        <div class="header-page-title" id="page-title">Dashboard</div>
+        <div class="header-logo">
+          <img src="assets/pnb-shield.png" alt="QSecure Radar" style="height:48px;"
+               onerror="this.outerHTML='<span style=\'font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:#8b1a2f;\'>&#128737; QSecure</span>'">
+        </div>
+        <div class="header-user" id="header-user">Welcome!</div>
+      </div>
+
+      <!-- Page Content -->
+      <div class="page-content" id="page-content">
+        <div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:12px;color:rgba(0,0,0,0.3);">
+          <div style="font-size:40px;">&#9656;</div>
+          <div style="font-family:Rajdhani;font-size:20px;">Loading QSecure Radar...</div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="footer">
+        <span id="footer-date">22/03/2026</span>
+        <span>PNB Hackathon 2026 &nbsp;|&nbsp; QSecure Radar v1.0 &nbsp;|&nbsp; Team REAL — KIIT</span>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ── Bootstrap on load ─────────────────────────────────────── */
+window.addEventListener('load', function() {
+
+  /* Set footer date */
+  document.getElementById('footer-date').textContent =
+    new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'2-digit', year:'numeric' });
+
+  /* Load user info from session */
+  var user = window._QSR_USER || {};
+  var roleLabels = { soc:'SOC Analyst', admin:'Infrastructure Admin', compliance:'Compliance Officer' };
+  document.getElementById('sidebar-user-name').textContent = user.name || user.email || 'Unknown User';
+  document.getElementById('sidebar-role-label').textContent = 'Role: ' + (roleLabels[user.role] || 'SOC Analyst');
+  document.getElementById('header-user').textContent = 'Welcome, ' + (user.name || user.email || 'User') + ' !';
+
+  /* Show admin-only nav items (FR2 — RBAC) */
+  if (user.role === 'admin') {
+    document.querySelectorAll('.admin-only').forEach(function(el) { el.style.display = ''; });
+  }
+
+  /* DB status pill */
+  var pill = document.getElementById('db-pill');
+  var pillText = document.getElementById('db-pill-text');
+  if (window.QSR_SUPABASE_READY) {
+    pill.className = 'connected'; pillText.textContent = 'Supabase Live';
+  } else {
+    pill.className = 'demo'; pillText.textContent = 'Demo Mode';
+  }
+
+  /* Navigate to home */
+  if (typeof navigateTo === 'function') navigateTo('home');
+});
+
+/* ── Logout (FR15 — log event) ─────────────────────────────── */
+function doLogout() {
+  if (window.QSR_Auth) { window.QSR_Auth.signOut(); return; }
+  sessionStorage.removeItem('qsr_user');
+  window.location.href = 'index.html';
+}
+</script>
+</body>
+</html>

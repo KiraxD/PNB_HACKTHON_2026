@@ -1,0 +1,27 @@
+# QSecure Radar — Supabase backend keys (never commit these)
+js/supabase-client.js
+
+# Node modules (for seed script)
+node_modules/
+package-lock.json
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temp
+.tmp/
+tmp/
+
+# PDF source (large binary)
+*.pdf

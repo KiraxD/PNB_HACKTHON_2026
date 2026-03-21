@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QSecure Radar — Login | PSB Hackathon 2026</title>
+  <meta name="description" content="QSecure Radar – Post-Quantum Cryptographic Assessment Platform for PNB">
+  <link rel="stylesheet" href="css/login.css">
+  <!-- Supabase JS v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="js/supabase-client.js"></script>
+  <style>
+    .tab-switch { display:flex; gap:0; margin-bottom:24px; border-radius:8px; overflow:hidden; border:1.5px solid rgba(255,255,255,0.25); }
+    .tab-switch button { flex:1; padding:11px; border:none; background:transparent; color:rgba(255,255,255,0.6); font-family:'Exo 2',sans-serif; font-size:14px; font-weight:600; cursor:pointer; transition:0.2s; }
+    .tab-switch button.active { background:rgba(245,166,35,0.85); color:#fff; }
+    .status-msg { text-align:center; font-size:13px; padding:8px 12px; border-radius:6px; margin-bottom:12px; display:none; }
+    .status-msg.success { background:rgba(72,187,120,0.2); color:#48bb78; border:1px solid #48bb78; display:block; }
+    .status-msg.error   { background:rgba(229,62,62,0.2);  color:#fc8181; border:1px solid #e53e3e;  display:block; }
+    .status-msg.info    { background:rgba(66,153,225,0.2); color:#90cdf4; border:1px solid #4299e1;  display:block; }
+    .spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation:spin 0.7s linear infinite; vertical-align:middle; margin-right:6px; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .hint-box { background:rgba(245,166,35,0.12); border:1px solid rgba(245,166,35,0.3); border-radius:8px; padding:10px 14px; font-size:12px; color:rgba(255,255,255,0.6); margin-bottom:16px; line-height:1.6; }
+    .hint-box strong { color:#f5a623; }
+  </style>
+</head>
+<body>
+
+  <!-- Institution Bar -->
+  <div class="inst-bar">
+    <img src="assets/logo-dfs.png" alt="Dept of Financial Services" class="inst-logo" onerror="this.style.display='none'">
+    <div class="inst-divider"></div>
+    <img src="assets/logo-iit.png" alt="IIT Kanpur" class="inst-logo" onerror="this.style.display='none'">
+    <div class="inst-divider"></div>
+    <img src="assets/logo-pnb.png" alt="PNB" class="inst-logo" onerror="this.style.display='none'">
+    <div class="inst-divider"></div>
+    <img src="assets/logo-kiit.png" alt="KIIT" class="inst-logo" onerror="this.style.display='none'">
+    <span style="font-weight:700;color:#8b1a2f;font-size:15px;letter-spacing:1px;font-family:Rajdhani,sans-serif;">
+      PSB HACKATHON 2026 &nbsp;|&nbsp; DEPT. OF FINANCIAL SERVICES &nbsp;|&nbsp; IIT KANPUR &nbsp;|&nbsp; PNB &nbsp;|&nbsp; KIIT
+    </span>
+  </div>
+
+  <!-- Main Login Body -->
+  <div class="login-main">
+    <div class="login-bg"></div>
+    <div class="login-bg-img"></div>
+
+    <!-- LEFT: Auth Form -->
+    <div class="login-left">
+
+      <!-- Tab: Sign In / Create Account -->
+      <div class="tab-switch">
+        <button class="active" id="tab-login" onclick="switchTab('login')">Sign In</button>
+        <button id="tab-register" onclick="switchTab('register')">Create Account</button>
+      </div>
+
+      <!-- ── SIGN IN PANEL ─────────────────────────────────── -->
+      <div id="panel-login">
+        <div id="login-status" class="status-msg"></div>
+
+        <div class="hint-box" id="demo-hint">
+          <strong>Demo Credentials:</strong><br>
+          Email: <strong>hackathon@pnb.bank.in</strong><br>
+          Password: <strong>PNB@2026Secure</strong><br>
+          <span style="font-size:11px;color:rgba(255,255,255,0.4);">(Or create a new account below)</span>
+        </div>
+
+        <div class="login-input-wrap">
+          <label class="login-form-label" for="email">Email Address</label>
+          <input id="email" type="email" class="login-input" placeholder="user@pnb.bank.in" autocomplete="username">
+        </div>
+        <div class="login-input-wrap">
+          <label class="login-form-label" for="password">Password</label>
+          <input id="password" type="password" class="login-input" placeholder="••••••••••" autocomplete="current-password">
+          <a class="forgot-link" href="#" onclick="showForgotPassword();return false;">Forgot Password?</a>
+        </div>
+
+        <!-- Role selection (FR2 — RBAC) -->
+        <div class="login-input-wrap" style="margin-bottom:20px;">
+          <label class="login-form-label" for="role">Login As (FR2 — RBAC)</label>
+          <select id="role" style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.3);border-radius:8px;font-size:15px;color:#fff;outline:none;appearance:none;font-family:'Exo 2',sans-serif;">
+            <option value="soc"        style="color:#000;">SOC Analyst</option>
+            <option value="admin"      style="color:#000;">Infrastructure Admin</option>
+            <option value="compliance" style="color:#000;">Compliance / Auditor</option>
+          </select>
+        </div>
+
+        <button class="login-btn" id="sign-in-btn" onclick="doLogin()">Sign In</button>
+      </div>
+
+      <!-- ── CREATE ACCOUNT PANEL ──────────────────────────── -->
+      <div id="panel-register" style="display:none;">
+        <div id="register-status" class="status-msg"></div>
+
+        <div class="hint-box">
+          <strong>Account Registration</strong><br>
+          New users can self-register. Admin accounts require approval.
+          Your role & permissions are assigned upon creation (FR2).
+        </div>
+
+        <div class="login-input-wrap">
+          <label class="login-form-label" for="reg-name">Full Name</label>
+          <input id="reg-name" type="text" class="login-input" placeholder="Reshob Roychoudhury">
+        </div>
+        <div class="login-input-wrap">
+          <label class="login-form-label" for="reg-email">Email Address</label>
+          <input id="reg-email" type="email" class="login-input" placeholder="user@pnb.bank.in">
+        </div>
+        <div class="login-input-wrap">
+          <label class="login-form-label" for="reg-password">Password</label>
+          <input id="reg-password" type="password" class="login-input" placeholder="Min 8 chars, incl. number">
+        </div>
+        <div class="login-input-wrap">
+          <label class="login-form-label" for="reg-confirm">Confirm Password</label>
+          <input id="reg-confirm" type="password" class="login-input" placeholder="Re-enter password">
+        </div>
+        <div class="login-input-wrap" style="margin-bottom:20px;">
+          <label class="login-form-label" for="reg-role">Role (FR2 — RBAC)</label>
+          <select id="reg-role" style="width:100%;padding:11px 14px;background:rgba(255,255,255,0.12);border:1.5px solid rgba(255,255,255,0.3);border-radius:8px;font-size:15px;color:#fff;outline:none;appearance:none;font-family:'Exo 2',sans-serif;">
+            <option value="soc"        style="color:#000;">SOC Analyst</option>
+            <option value="compliance" style="color:#000;">Compliance / Auditor</option>
+            <option value="admin"      style="color:#000;">Infrastructure Admin</option>
+          </select>
+        </div>
+        <button class="login-btn" id="register-btn" onclick="doRegister()">Create Account</button>
+        <p style="text-align:center;font-size:12px;color:rgba(255,255,255,0.4);margin-top:12px;">
+          By registering you agree to PNB security policies and Zero Trust access terms.
+        </p>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: Branding -->
+    <div class="login-right">
+      <div class="hackathon-title">PSB HACKATHON SERIES</div>
+      <div class="hackathon-sub">In collaboration with IIT Kanpur</div>
+      <div class="hackathon-divider"><span class="hackathon-dot">◦ ◦ ◦</span></div>
+      <div class="hackathon-name">PNB Cybersecurity<br>Hackathon 2026</div>
+      <div class="hackathon-tagline">Cyber Innovation Begins</div>
+      <img src="assets/pnb-shield.png" alt="PQC-Ready PNB Shield" class="pnb-shield-img"
+           onerror="this.outerHTML='<div style=\'width:120px;height:120px;background:linear-gradient(135deg,#8b1a2f,#f5a623);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:Rajdhani,sans-serif;color:#fff;font-size:16px;font-weight:700;text-align:center;margin:0 auto;\'>PQC<br>Ready<br>PNB</div>'">
+
+      <!-- Live Supabase status indicator -->
+      <div id="db-status" style="margin-top:20px;font-size:12px;padding:6px 14px;border-radius:20px;background:rgba(0,0,0,0.3);color:rgba(255,255,255,0.5);">
+        ⏳ Checking database...
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="login-footer">
+    <span>22/03/2026</span>
+    <span>PNB Hackathon 2026 | QSecure Radar v1.0 | Team REAL — KIIT</span>
+  </div>
+
+  <!-- MFA Overlay (FR1: Multi-Factor Authentication) -->
+  <div class="mfa-overlay" id="mfa-overlay">
+    <div class="mfa-card">
+      <div style="font-size:40px;margin-bottom:10px;">🔐</div>
+      <h2 style="font-family:Rajdhani;font-size:22px;margin-bottom:8px;">Two-Factor Authentication</h2>
+      <p style="font-size:13px;color:rgba(255,255,255,0.6);margin-bottom:20px;">
+        Enter the 6-digit OTP sent to your registered mobile/email.
+      </p>
+
+      <!-- OTP Digits -->
+      <div style="display:flex;gap:8px;justify-content:center;margin-bottom:16px;" id="otp-boxes">
+        <input type="text" maxlength="1" class="otp-digit" oninput="otpNext(this,0)" onkeydown="otpBack(this,event,0)">
+        <input type="text" maxlength="1" class="otp-digit" oninput="otpNext(this,1)" onkeydown="otpBack(this,event,1)">
+        <input type="text" maxlength="1" class="otp-digit" oninput="otpNext(this,2)" onkeydown="otpBack(this,event,2)">
+        <input type="text" maxlength="1" class="otp-digit" oninput="otpNext(this,3)" onkeydown="otpBack(this,event,3)">
+        <input type="text" maxlength="1" class="otp-digit" oninput="otpNext(this,4)" onkeydown="otpBack(this,event,4)">
+        <input type="text" maxlength="1" class="otp-digit" oninput="otpNext(this,5)" onkeydown="otpBack(this,event,5)">
+      </div>
+
+      <div id="mfa-status" class="status-msg" style="margin-bottom:12px;"></div>
+
+      <div style="background:rgba(245,166,35,0.15);border:1px solid rgba(245,166,35,0.4);border-radius:6px;padding:8px 14px;font-size:12px;color:rgba(255,255,255,0.6);margin-bottom:16px;">
+        Demo OTP: <strong style="color:#f5a623;font-size:16px;letter-spacing:2px;">1 2 3 4 5 6</strong>
+      </div>
+
+      <button class="login-btn" onclick="verifyMFA()" id="mfa-verify-btn">
+        Verify &amp; Continue
+      </button>
+      <p style="color:rgba(255,255,255,0.4);font-size:13px;margin-top:12px;cursor:pointer;" onclick="resendOTP()">
+        Resend OTP
+      </p>
+    </div>
+  </div>
+
+<style>
+.otp-digit {
+  width: 46px; height: 54px;
+  text-align: center;
+  font-size: 22px;
+  font-family: Rajdhani, monospace;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(255,255,255,0.1);
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 8px;
+  outline: none;
+  transition: 0.2s;
+}
+.otp-digit:focus { border-color: #f5a623; background: rgba(245,166,35,0.15); }
+</style>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   QSecure Radar — Login / Registration Logic
+   FR1: MFA | FR2: RBAC | FR3: Zero Trust Session Guard
+══════════════════════════════════════════════════════════════ */
+
+// Pending session before MFA
+let _pendingSession = null;
+
+/* ── Tab Switching ─────────────────────────────────────────── */
+function switchTab(tab) {
+  document.getElementById('panel-login').style.display    = tab === 'login'    ? '' : 'none';
+  document.getElementById('panel-register').style.display = tab === 'register' ? '' : 'none';
+  document.getElementById('tab-login').classList.toggle('active',    tab === 'login');
+  document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+}
+
+/* ── Status helpers ────────────────────────────────────────── */
+function showStatus(id, msg, type) {
+  var el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'status-msg ' + type;
+}
+
+/* ── Sign In (FR1 — MFA, FR2 — RBAC) ──────────────────────── */
+async function doLogin() {
+  var email = document.getElementById('email').value.trim();
+  var pass  = document.getElementById('password').value.trim();
+  var role  = document.getElementById('role').value;
+  var btn   = document.getElementById('sign-in-btn');
+
+  if (!email || !pass) {
+    showStatus('login-status', 'Email and password are required.', 'error');
+    return;
+  }
+
+  btn.innerHTML = '<span class="spinner"></span>Authenticating…';
+  btn.disabled = true;
+
+  try {
+    if (window.QSR_SUPABASE_READY && window.QSR_DB) {
+      // Real Supabase authentication
+      var { data, error } = await window.QSR_DB.auth.signInWithPassword({ email, password: pass });
+
+      if (error) {
+        showStatus('login-status', error.message, 'error');
+        btn.innerHTML = 'Sign In';
+        btn.disabled = false;
+        return;
+      }
+
+      // Fetch profile for role (FR2)
+      var { data: profile } = await window.QSR_DB.from('profiles')
+        .select('role,full_name').eq('id', data.user.id).single();
+
+      _pendingSession = {
+        id:    data.user.id,
+        email: data.user.email,
+        role:  profile?.role || role,
+        name:  profile?.full_name || email.split('@')[0]
+      };
+
+    } else {
+      // Demo mode fallback
+      if (pass.length < 5) {
+        showStatus('login-status', 'Demo mode: use any email with password 5+ chars.', 'error');
+        btn.innerHTML = 'Sign In'; btn.disabled = false;
+        return;
+      }
+      _pendingSession = {
+        id: 'demo-' + Date.now(), email: email, role: role,
+        name: email.split('@')[0]
+      };
+    }
+
+    // Trigger MFA (FR1)
+    btn.innerHTML = 'Sign In';
+    btn.disabled = false;
+    showStatus('login-status', '', 'info');
+    document.getElementById('mfa-overlay').classList.add('show');
+    document.querySelectorAll('.otp-digit')[0].focus();
+
+  } catch(e) {
+    showStatus('login-status', 'Unexpected error: ' + e.message, 'error');
+    btn.innerHTML = 'Sign In';
+    btn.disabled = false;
+  }
+}
+
+/* ── Register New Account ──────────────────────────────────── */
+async function doRegister() {
+  var name     = document.getElementById('reg-name').value.trim();
+  var email    = document.getElementById('reg-email').value.trim();
+  var pass     = document.getElementById('reg-password').value;
+  var confirm  = document.getElementById('reg-confirm').value;
+  var role     = document.getElementById('reg-role').value;
+  var btn      = document.getElementById('register-btn');
+
+  if (!name || !email || !pass || !confirm) {
+    showStatus('register-status', 'All fields are required.', 'error'); return;
+  }
+  if (pass !== confirm) {
+    showStatus('register-status', 'Passwords do not match.', 'error'); return;
+  }
+  if (pass.length < 8) {
+    showStatus('register-status', 'Password must be at least 8 characters.', 'error'); return;
+  }
+  if (!/\d/.test(pass)) {
+    showStatus('register-status', 'Password must include at least one number.', 'error'); return;
+  }
+
+  btn.innerHTML = '<span class="spinner"></span>Creating account…';
+  btn.disabled  = true;
+
+  try {
+    if (window.QSR_SUPABASE_READY && window.QSR_DB) {
+      var { data, error } = await window.QSR_DB.auth.signUp({
+        email,
+        password: pass,
+        options: { data: { full_name: name, role: role } }
+      });
+
+      if (error) {
+        showStatus('register-status', error.message, 'error');
+      } else if (data.user && !data.session) {
+        showStatus('register-status',
+          '✅ Account created! Check your email to confirm your address, then sign in.',
+          'success');
+        // Switch to login tab after 2.5s
+        setTimeout(() => { switchTab('login'); }, 2500);
+      } else if (data.session) {
+        // Email confirmation disabled — auto-login
+        _pendingSession = { id: data.user.id, email, role, name };
+        showStatus('register-status', '✅ Account created! Proceeding to MFA…', 'success');
+        setTimeout(() => {
+          document.getElementById('mfa-overlay').classList.add('show');
+          document.querySelectorAll('.otp-digit')[0].focus();
+        }, 1000);
+      }
+    } else {
+      // Demo mode registration
+      _pendingSession = { id: 'demo-' + Date.now(), email, role, name };
+      showStatus('register-status',
+        '✅ Account created (demo mode)! Proceeding to MFA verification…', 'success');
+      setTimeout(() => {
+        document.getElementById('mfa-overlay').classList.add('show');
+        document.querySelectorAll('.otp-digit')[0].focus();
+      }, 1200);
+    }
+  } catch(e) {
+    showStatus('register-status', 'Error: ' + e.message, 'error');
+  }
+
+  btn.innerHTML = 'Create Account';
+  btn.disabled  = false;
+}
+
+/* ── MFA Verification (FR1) ────────────────────────────────── */
+function verifyMFA() {
+  var digits = document.querySelectorAll('.otp-digit');
+  var otp = Array.from(digits).map(d => d.value).join('');
+  var btn = document.getElementById('mfa-verify-btn');
+
+  if (otp.length < 6) {
+    showStatus('mfa-status', 'Enter all 6 digits.', 'error'); return;
+  }
+
+  // Demo accepts 123456 or any 6-digit code in demo mode
+  var valid = (otp === '123456') || (!window.QSR_SUPABASE_READY && otp.match(/^\d{6}$/));
+
+  if (valid) {
+    btn.innerHTML = '<span class="spinner"></span>Verifying…';
+
+    // Persist session (FR3 — Zero Trust session)
+    var session = _pendingSession || {
+      email: document.getElementById('email')?.value || 'user@pnb.bank.in',
+      role: 'soc', name: 'User', id: 'demo'
+    };
+    sessionStorage.setItem('qsr_user', JSON.stringify(session));
+
+    // Log login event (FR15)
+    if (window.QSR_Auth && window.QSR_SUPABASE_READY) {
+      window.QSR_Auth.logAction('LOGIN_MFA_SUCCESS', session.id, session.email, '🔐');
+    }
+
+    window.location.href = 'dashboard.html';
+  } else {
+    showStatus('mfa-status', 'Invalid OTP. Try 123456 (demo) or your authenticator code.', 'error');
+    digits.forEach(d => { d.style.borderColor = '#e53e3e'; });
+    setTimeout(() => digits.forEach(d => d.style.borderColor = ''), 700);
+  }
+}
+
+/* ── OTP box navigation ────────────────────────────────────── */
+function otpNext(el, idx) {
+  el.value = el.value.replace(/\D/, '');
+  if (el.value) {
+    var next = document.querySelectorAll('.otp-digit')[idx + 1];
+    if (next) next.focus();
+    else verifyMFA();
+  }
+}
+function otpBack(el, e, idx) {
+  if (e.key === 'Backspace' && !el.value) {
+    var prev = document.querySelectorAll('.otp-digit')[idx - 1];
+    if (prev) prev.focus();
+  }
+  if (e.key === 'Enter') verifyMFA();
+}
+
+/* ── Forgot Password ───────────────────────────────────────── */
+async function showForgotPassword() {
+  var email = document.getElementById('email').value.trim();
+  if (!email) {
+    showStatus('login-status', 'Enter your email first, then click Forgot Password.', 'info');
+    return;
+  }
+  if (window.QSR_SUPABASE_READY && window.QSR_DB) {
+    var { error } = await window.QSR_DB.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/index.html'
+    });
+    if (error) showStatus('login-status', error.message, 'error');
+    else showStatus('login-status', '✅ Password reset email sent to ' + email, 'success');
+  } else {
+    showStatus('login-status', 'Demo mode: password reset requires Supabase connection.', 'info');
+  }
+}
+
+function resendOTP() {
+  document.querySelectorAll('.otp-digit').forEach(d => d.value = '');
+  document.querySelectorAll('.otp-digit')[0].focus();
+  showStatus('mfa-status', 'OTP resent to your registered contact.', 'info');
+}
+
+/* ── Redirect if already logged in ────────────────────────── */
+(async function checkExistingSession() {
+  // Check Supabase session
+  if (window.QSR_SUPABASE_READY && window.QSR_DB) {
+    var { data: { session } } = await window.QSR_DB.auth.getSession();
+    if (session) {
+      window.location.href = 'dashboard.html'; return;
+    }
+  }
+  // Check sessionStorage fallback
+  if (sessionStorage.getItem('qsr_user')) {
+    window.location.href = 'dashboard.html'; return;
+  }
+})();
+
+/* ── DB status indicator ───────────────────────────────────── */
+window.addEventListener('load', function() {
+  var el = document.getElementById('db-status');
+  if (!el) return;
+  if (window.QSR_SUPABASE_READY) {
+    el.innerHTML = '🟢 Connected to Supabase';
+    el.style.color = '#48bb78';
+    el.style.background = 'rgba(72,187,120,0.15)';
+  } else {
+    el.innerHTML = '🟡 Demo Mode (No DB)';
+    el.style.color = '#ecc94b';
+    el.style.background = 'rgba(236,201,75,0.15)';
+  }
+});
+
+/* ── Keyboard support ──────────────────────────────────────── */
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    var mfaVisible = document.getElementById('mfa-overlay').classList.contains('show');
+    if (mfaVisible) verifyMFA();
+    else if (document.getElementById('panel-login').style.display !== 'none') doLogin();
+    else doRegister();
+  }
+});
+</script>
+</body>
+</html>
