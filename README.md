@@ -42,64 +42,6 @@ QSecure Radar evaluates internet-facing PNB banking systems for cryptographic re
 
 ---
 
-## Quick Start
-
-### 1. Configure Supabase
-Edit `js/supabase-client.js`:
-```js
-const SUPABASE_URL      = 'https://YOUR_PROJECT.supabase.co';
-const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY';
-```
-
-### 2. Apply schema
-Run `supabase/schema.sql` in the Supabase SQL Editor.
-
-### 3. Seed data (optional)
-```bash
-cd supabase
-npm install @supabase/supabase-js
-SUPABASE_SERVICE_KEY=... node seed.js
-```
-
-### 4. Open the app
-Open `index.html` in your browser. Demo Mode works without Supabase.
-
-**Demo credentials:** any email + 5+ char password, OTP: `123456`
-
----
-
-## Project Structure
-
-```
-pnb/
-├── index.html              # Login + MFA + Create Account
-├── dashboard.html          # SPA shell
-├── css/
-│   ├── styles.css          # Premium design system
-│   └── login.css           # Login page styles
-├── js/
-│   ├── supabase-client.js  # SET YOUR KEYS HERE
-│   ├── data-layer.js       # Live Supabase + mock fallback
-│   ├── data.js             # Mock data (demo mode)
-│   ├── app.js              # SPA router + Home + Inventory
-│   ├── charts.js           # Responsive canvas charts
-│   ├── network-graph.js    # D3.js force graph
-│   ├── pages-discovery.js  # Asset Discovery (FR4,FR5)
-│   ├── pages-cbom.js       # CBOM (FR8)
-│   ├── pages-pqc.js        # PQC Posture (FR9-FR12)
-│   ├── pages-cyber-rating.js # Cyber Rating (FR10)
-│   ├── pages-reporting.js  # Reports (FR14)
-│   ├── pages-auditlog.js   # Audit Log (FR15)
-│   └── pages-users.js      # User Management (FR2)
-├── supabase/
-│   ├── schema.sql          # 13 tables + RLS
-│   └── seed.js             # One-time data seeder
-└── assets/
-    └── bg-circuit.svg
-```
-
----
-
 ## Team REAL
 
 | Member | Role |
@@ -110,3 +52,4 @@ pnb/
 | Priyadarshini Gupta | Tester |
 
 **Institute:** Kalinga Institute of Industrial Technology (KIIT)
+
