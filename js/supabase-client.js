@@ -70,8 +70,9 @@ window.QSR_Auth = {
 
   resetPassword: async function(email) {
     if (!window.QSR_DB) return;
+    var prodUrl = 'https://qsecure-radar.vercel.app';
     await QSR_DB.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/index.html'
+      redirectTo: prodUrl + '/index.html'
     });
   }
 };
