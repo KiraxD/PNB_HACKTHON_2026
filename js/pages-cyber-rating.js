@@ -1,80 +1,129 @@
-﻿/* pages-cyber-rating.js - Cyber Rating Page (FR10, FR14) */
-/* QR Score range: 0-100 per SRS FR9 */
+/* pages-cyber-rating.js — Cyber Rating Dashboard (FR10, FR14)
+   QR Score range: 0-100 per SRS FR9                              */
 
 window._cyberRatingPage = function() {
-  return '<div style="font-family:Rajdhani;font-size:22px;font-weight:700;color:#8b1a2f;margin-bottom:14px;">Cyber Rating Dashboard (FR10, FR14)</div>' +
+  return `
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Cyber Rating Dashboard</h1>
+      <p class="page-subtitle">Enterprise PQC posture &amp; quantum-readiness score — FR10, FR14</p>
+    </div>
+  </div>
 
-    '<div class="grid-2" style="margin-bottom:12px;">' +
+  <!-- Top row: Gauge + Tier table -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
 
-    /* Gauge panel */
-    '<div class="panel" style="text-align:center;">' +
-    '<div class="panel-title">Enterprise QR Score (FR9 - Scale: 0 to 100)</div>' +
-    '<canvas id="chart-gauge" data-h="200" style="width:100%;display:block;"></canvas>' +
-    '<div id="gauge-score-label" style="font-family:Rajdhani;font-size:48px;font-weight:700;color:#e53e3e;line-height:1;margin-top:-30px;">42</div>' +
-    '<div style="font-size:13px;color:#4a4a6a;margin-bottom:4px;">out of 100</div>' +
-    '<div id="gauge-grade" style="font-family:Rajdhani;font-size:18px;font-weight:700;background:rgba(229,62,62,0.1);color:#e53e3e;padding:6px 20px;border-radius:20px;display:inline-block;margin-bottom:8px;">Tier 3 - Satisfactory</div>' +
-    '<div style="font-size:12px;color:#888;">Lower score = higher quantum risk | 76-100 = Elite PQC</div>' +
-    '</div>' +
+    <!-- Gauge panel -->
+    <div class="panel" style="display:flex;flex-direction:column;align-items:center;padding:20px;">
+      <div class="panel-title" style="width:100%;text-align:left;">Enterprise QR Score (0 – 100)</div>
+      <div style="position:relative;width:100%;max-width:280px;margin:0 auto;">
+        <canvas id="chart-gauge" style="width:100%;display:block;"></canvas>
+        <div style="position:absolute;bottom:12%;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none;">
+          <div id="gauge-score-label" style="font-family:Rajdhani,sans-serif;font-size:46px;font-weight:800;line-height:1;color:#e53e3e;">42</div>
+          <div style="font-size:12px;color:#888;margin-top:2px;">out of 100</div>
+        </div>
+      </div>
+      <div id="gauge-grade" style="font-family:Rajdhani,sans-serif;font-size:15px;font-weight:700;
+           background:rgba(229,62,62,0.1);color:#e53e3e;padding:5px 18px;border-radius:20px;
+           margin-top:10px;text-align:center;white-space:nowrap;">
+        Tier 3 – Satisfactory
+      </div>
+      <div style="font-size:11px;color:#aaa;margin-top:8px;text-align:center;line-height:1.5;">
+        76-100 = Elite PQC &nbsp;|&nbsp; 51-75 = Standard<br>
+        26-50 = Satisfactory &nbsp;|&nbsp; 0-25 = Critical
+      </div>
+    </div>
 
-    /* Tier breakdown */
-    '<div class="panel"><div class="panel-title">PQC Tier Classification (FR10)</div>' +
-    '<div class="table-wrap"><table class="data-table" id="tier-table"><thead><tr><th>Tier</th><th>Score Range</th><th>Assets</th><th>Status</th></tr></thead>' +
-    '<tbody id="tier-tbody"><tr><td colspan="4" style="text-align:center;padding:20px;color:#aaa;">Loading...</td></tr></tbody>' +
-    '</table></div>' +
-    '<div style="margin-top:12px;font-size:12px;color:#4a4a6a;line-height:1.6;">' +
-    '<strong>NIST PQC Migration Targets (FR12):</strong><br>' +
-    'CRYSTALS-Kyber (ML-KEM) for key encapsulation<br>' +
-    'CRYSTALS-Dilithium (ML-DSA) for digital signatures<br>' +
-    'SPHINCS+ for hash-based signatures' +
-    '</div></div>' +
-    '</div>' +
+    <!-- Tier breakdown -->
+    <div class="panel" style="overflow:hidden;">
+      <div class="panel-title">PQC Tier Classification (FR10)</div>
+      <div style="overflow-x:auto;">
+        <table class="data-table" id="tier-table" style="min-width:360px;">
+          <thead><tr>
+            <th>Tier</th><th>Range</th><th style="text-align:center;">Assets</th><th>Description</th>
+          </tr></thead>
+          <tbody id="tier-tbody">
+            <tr><td colspan="4" style="text-align:center;padding:20px;color:#aaa;">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:12px;padding:10px 12px;background:rgba(66,153,225,0.06);border-radius:8px;border-left:3px solid #4299e1;font-size:12px;color:#4a4a6a;line-height:1.7;">
+        <strong>NIST PQC Migration Targets (FR12):</strong><br>
+        CRYSTALS-Kyber (ML-KEM) — key encapsulation<br>
+        CRYSTALS-Dilithium (ML-DSA) — digital signatures<br>
+        SPHINCS+ — hash-based signatures
+      </div>
+    </div>
 
-    /* Per-asset table */
-    '<div class="panel"><div class="panel-title">Per-Asset PQC Score Breakdown (FR9)</div>' +
-    '<div class="table-wrap"><table class="data-table"><thead><tr><th>Asset</th><th>QR Score (0-100)</th><th>Grade</th><th>TLS Ver</th><th>Score Bar</th></tr></thead>' +
-    '<tbody id="asset-score-tbody"><tr><td colspan="5" style="text-align:center;padding:20px;color:#aaa;">Loading assets...</td></tr></tbody>' +
-    '</table></div></div>';
+  </div>
+
+  <!-- Per-asset score table -->
+  <div class="panel">
+    <div class="panel-title">Per-Asset PQC Score Breakdown (FR9)</div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" id="asset-score-table" style="min-width:540px;">
+        <thead><tr>
+          <th>Asset</th>
+          <th style="text-align:center;width:96px;">QR Score</th>
+          <th>Grade</th>
+          <th style="width:70px;">TLS</th>
+          <th>PQC Ready</th>
+          <th style="min-width:120px;">Score Bar</th>
+        </tr></thead>
+        <tbody id="asset-score-tbody">
+          <tr><td colspan="6" style="text-align:center;padding:20px;color:#aaa;">Loading assets…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>`;
 };
 
+/* ── Init ───────────────────────────────────────────────────── */
 window.initCyberRating = async function() {
   var rating = QSR.cyberRating;
   var pqc    = QSR.pqcPosture;
 
-  /* Fetch live data if available */
   if (window.QSR_DataLayer) {
     try {
-      var liveRating = await window.QSR_DataLayer.fetchCyberRating();
+      var liveRating = await QSR_DataLayer.fetchCyberRating();
       if (liveRating) rating = liveRating;
-      var livePQC = await window.QSR_DataLayer.fetchPQCScores();
+      var livePQC = await QSR_DataLayer.fetchPQCScores();
       if (livePQC) pqc = livePQC;
     } catch(e) { console.warn('[CyberRating]', e); }
   }
 
   var score = rating.enterpriseScore || 42;
-  var grade = rating.grade || 'Tier 3 - Satisfactory';
+  var grade = rating.grade || 'Tier 3 – Satisfactory';
 
-  /* Score color by tier */
-  var scoreColor = score >= 76 ? '#48bb78' : score >= 51 ? '#4299e1' : score >= 26 ? '#ecc94b' : '#e53e3e';
+  /* Color by tier */
+  var scoreColor = score >= 76 ? '#48bb78'
+                 : score >= 51 ? '#4299e1'
+                 : score >= 26 ? '#ecc94b'
+                 : '#e53e3e';
 
-  /* Update labels */
+  /* Update score label + grade pill */
   var scoreEl = document.getElementById('gauge-score-label');
   var gradeEl = document.getElementById('gauge-grade');
   if (scoreEl) { scoreEl.textContent = score; scoreEl.style.color = scoreColor; }
-  if (gradeEl) { gradeEl.textContent = grade; gradeEl.style.color = scoreColor; gradeEl.style.background = scoreColor + '18'; }
+  if (gradeEl) {
+    gradeEl.textContent = grade;
+    gradeEl.style.color = scoreColor;
+    gradeEl.style.background = scoreColor + '18';
+  }
 
-  /* Draw gauge (0-100, arc sweeps left-to-right) */
-  QSR.drawGauge('chart-gauge', score, 100, scoreColor, score);
+  /* Draw gauge */
+  _drawCyberGauge('chart-gauge', score, scoreColor);
 
-  /* Tier classification table */
+  /* Tier table */
   var tierTbody = document.getElementById('tier-tbody');
   if (tierTbody) {
-    var tiers = rating.tiers || QSR.cyberRating.tiers;
+    var tiers = (rating.tiers || QSR.cyberRating.tiers || []);
     tierTbody.innerHTML = tiers.map(function(t) {
       return '<tr>' +
-        '<td style="font-weight:700;color:'+t.color+';">' + t.tier + '</td>' +
-        '<td style="font-family:Rajdhani;font-size:16px;font-weight:700;">' + t.range + '</td>' +
-        '<td style="font-family:Rajdhani;font-size:18px;font-weight:700;color:'+t.color+';">' + t.count + '</td>' +
-        '<td style="font-size:12px;color:#4a4a6a;">' + t.desc + '</td>' +
+        '<td style="font-weight:700;color:' + t.color + ';white-space:nowrap;">' + t.tier + '</td>' +
+        '<td style="font-family:Rajdhani,sans-serif;font-size:15px;font-weight:700;white-space:nowrap;">' + t.range + '</td>' +
+        '<td style="text-align:center;font-family:Rajdhani,sans-serif;font-size:20px;font-weight:800;color:' + t.color + ';">' + t.count + '</td>' +
+        '<td style="font-size:12px;color:#4a4a6a;white-space:normal;line-height:1.4;max-width:180px;">' + t.desc + '</td>' +
         '</tr>';
     }).join('');
   }
@@ -82,59 +131,80 @@ window.initCyberRating = async function() {
   /* Per-asset table */
   var assetTbody = document.getElementById('asset-score-tbody');
   if (assetTbody && pqc && pqc.assets) {
-    var tlsMap = { 'Elite-PQC':'1.3', Standard:'1.3', Legacy:'1.2', Critical:'1.0' };
+    var tlsMap = { 'Elite-PQC': '1.3', Standard: '1.3', Legacy: '1.2', Critical: '1.0' };
     assetTbody.innerHTML = pqc.assets.map(function(a) {
-      var s = a.score || 0;
-      var c = s >= 76 ? '#48bb78' : s >= 51 ? '#4299e1' : s >= 26 ? '#ecc94b' : '#e53e3e';
+      var s   = a.score || 0;
       var pct = Math.min(s, 100);
+      var c   = s >= 76 ? '#48bb78' : s >= 51 ? '#4299e1' : s >= 26 ? '#ecc94b' : '#e53e3e';
+      var tls = tlsMap[a.status] || '1.2';
+      var pqcBadge = a.pqcSupport
+        ? '<span class="badge badge-ok">YES</span>'
+        : '<span class="badge badge-danger">NO</span>';
       return '<tr>' +
-        '<td style="font-weight:600;">' + a.name + '</td>' +
-        '<td><span style="font-family:Rajdhani;font-size:20px;font-weight:700;color:'+c+';">' + s + '</span><span style="font-size:10px;color:#aaa;">/100</span></td>' +
-        '<td><span class="badge" style="background:'+c+'22;color:'+c+';border:1px solid '+c+';">' + a.status + '</span></td>' +
-        '<td style="font-family:monospace;">' + (tlsMap[a.status]||'1.2') + '</td>' +
-        '<td style="min-width:120px;"><div class="progress-bar"><div class="progress-fill" style="width:'+pct+'%;background:'+c+';"></div></div></td>' +
+        '<td style="font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + a.name + '">' + a.name + '</td>' +
+        '<td style="text-align:center;"><span style="font-family:Rajdhani,sans-serif;font-size:22px;font-weight:800;color:' + c + ';">' + s + '</span><span style="font-size:11px;color:#aaa;">/100</span></td>' +
+        '<td><span class="badge" style="background:' + c + '20;color:' + c + ';border:1px solid ' + c + ';white-space:nowrap;">' + a.status + '</span></td>' +
+        '<td style="font-family:monospace;font-size:13px;text-align:center;">' + tls + '</td>' +
+        '<td style="text-align:center;">' + pqcBadge + '</td>' +
+        '<td style="min-width:120px;padding-right:12px;"><div class="progress-bar" style="height:8px;border-radius:4px;background:rgba(0,0,0,0.08);overflow:hidden;"><div style="width:' + pct + '%;height:100%;background:' + c + ';border-radius:4px;transition:width 0.8s ease;"></div></div><div style="font-size:10px;color:#aaa;margin-top:3px;text-align:right;">' + pct + '%</div></td>' +
         '</tr>';
     }).join('');
   }
 };
 
-/* Draw semi-circle gauge 0-100 */
-function drawGauge100(canvasId, score, color) {
+/* ── Semi-circle gauge (0-100) ──────────────────────────────── */
+function _drawCyberGauge(canvasId, score, color) {
   var canvas = document.getElementById(canvasId);
   if (!canvas) return;
-  var ctx = canvas.getContext('2d');
-  var W = canvas.width, H = canvas.height;
-  var cx = W/2, cy = H * 0.78;
-  var r = Math.min(W, H) * 0.58;
-  ctx.clearRect(0, 0, W, H);
 
-  /* Background arc */
+  /* Size canvas to its CSS width */
+  var cssW = canvas.parentElement.clientWidth || 280;
+  var cssH = Math.round(cssW * 0.58);
+  canvas.width  = cssW;
+  canvas.height = cssH;
+
+  var ctx = canvas.getContext('2d');
+  var cx  = cssW / 2;
+  var cy  = cssH * 0.88;   /* arc center near bottom */
+  var r   = Math.min(cssW, cssH * 1.7) * 0.43;
+
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  /* Track arc */
   ctx.beginPath();
   ctx.arc(cx, cy, r, Math.PI, 0);
-  ctx.lineWidth = 18; ctx.strokeStyle = '#e8e8f0';
-  ctx.lineCap = 'round'; ctx.stroke();
+  ctx.lineWidth   = 16;
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineCap     = 'round';
+  ctx.stroke();
 
-  /* Score arc (0=left, 100=right) */
-  var pct = Math.min(score, 100) / 100;
+  /* Colored score arc */
+  var pct      = Math.min(Math.max(score, 0), 100) / 100;
   var endAngle = Math.PI + pct * Math.PI;
   ctx.beginPath();
   ctx.arc(cx, cy, r, Math.PI, endAngle);
-  ctx.lineWidth = 18; ctx.strokeStyle = color;
-  ctx.lineCap = 'round'; ctx.stroke();
+  ctx.lineWidth   = 16;
+  ctx.strokeStyle = color;
+  ctx.lineCap     = 'round';
+  ctx.stroke();
 
-  /* Tick marks at 0, 25, 50, 75, 100 */
-  [0, 25, 50, 75, 100].forEach(function(v) {
-    var angle = Math.PI + (v/100) * Math.PI;
-    var x1 = cx + (r - 12) * Math.cos(angle);
-    var y1 = cy + (r - 12) * Math.sin(angle);
-    var x2 = cx + (r + 4)  * Math.cos(angle);
-    var y2 = cy + (r + 4)  * Math.sin(angle);
+  /* Tick marks + labels */
+  var ticks = [0, 25, 50, 75, 100];
+  var tickColors = { 0:'#e53e3e', 25:'#e53e3e', 50:'#ecc94b', 75:'#4299e1', 100:'#48bb78' };
+  ctx.font      = 'bold 11px "Exo 2", sans-serif';
+  ctx.textAlign = 'center';
+  ticks.forEach(function(v) {
+    var ang = Math.PI + (v / 100) * Math.PI;
+    var x1  = cx + (r - 10) * Math.cos(ang);
+    var y1  = cy + (r - 10) * Math.sin(ang);
+    var x2  = cx + (r +  6) * Math.cos(ang);
+    var y2  = cy + (r +  6) * Math.sin(ang);
     ctx.beginPath();
     ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
-    ctx.lineWidth = 2; ctx.strokeStyle = '#4a4a6a'; ctx.stroke();
-    /* Label */
-    ctx.fillStyle = '#4a4a6a'; ctx.font = '10px Exo 2, sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(v, cx + (r + 18) * Math.cos(angle), cy + (r + 18) * Math.sin(angle));
+    ctx.lineWidth   = 2;
+    ctx.strokeStyle = tickColors[v] || '#4a4a6a';
+    ctx.stroke();
+    ctx.fillStyle = '#4a4a6a';
+    ctx.fillText(String(v), cx + (r + 20) * Math.cos(ang), cy + (r + 20) * Math.sin(ang) + 3);
   });
 }
-
