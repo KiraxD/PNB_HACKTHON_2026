@@ -325,38 +325,43 @@ window.QSR_DataLayer = (function() {
   }
 
   function computeKeyLengths(items) {
-    return Object.entries(counts).map(([label,value]) => ({
-      label, value, color: colors[label] || '#4299e1'
-    }));
+    var counts = {};
+    items.forEach(function(i) {
+      var k = i.keyLen || i.keyLength || '—';
+      counts[k] = (counts[k] || 0) + 1;
+    });
+    var colors = {
+      'RSA-1024':'#e53e3e', 'RSA-2048':'#ed8936', 'RSA-4096':'#48bb78',
+      '1024-bit':'#e53e3e', '2048-bit':'#ed8936',  '4096-bit':'#48bb78'
+    };
+    return Object.entries(counts).map(function(entry) {
+      return { label: entry[0], value: entry[1], color: colors[entry[0]] || '#4299e1' };
+    });
   }
 
   function computeCipherUsage(items) {
-    const counts = {};
-    items.forEach(i => { if(i.cipher) counts[i.cipher] = (counts[i.cipher]||0)+1; });
-    return Object.entries(counts).slice(0,6).map(([cipher,count]) => ({ cipher, count }));
+    var counts = {};
+    items.forEach(function(i) { if (i.cipher) counts[i.cipher] = (counts[i.cipher] || 0) + 1; });
+    return Object.entries(counts).slice(0, 6).map(function(entry) {
+      return { cipher: entry[0], count: entry[1] };
+    });
   }
 
   function computeCAs(items) {
-    const counts = {};
-    items.forEach(i => { if(i.ca) counts[i.ca] = (counts[i.ca]||0)+1; });
-    return Object.entries(counts).slice(0,4).map(([name,count]) => ({ name, count }));
+    var counts = {};
+    items.forEach(function(i) { if (i.ca) counts[i.ca] = (counts[i.ca] || 0) + 1; });
+    return Object.entries(counts).slice(0, 4).map(function(entry) {
+      return { name: entry[0], count: entry[1] };
+    });
   }
 
-  /* ── Public API ────────────────────────────────────────────── */
+  /* ── Public API ────────────────────────────────────────── */
   return {
-    fetchAssets,
-    fetchDomains,
-    fetchSSLs,
-    fetchIPSubnets,
-    fetchSoftware,
-    fetchCryptoOverview,
-    fetchNameservers,
-    fetchCBOM,
-    fetchPQCScores,
-    fetchCyberRating,
-    fetchAuditLog,
-    createReport,
-    logScanEvent,
-    timeSince
+    fetchAssets, fetchDomains, fetchSSLs, fetchIPSubnets,
+    fetchSoftware, fetchCryptoOverview, fetchNameservers,
+    fetchCBOM, fetchPQCScores, fetchCyberRating,
+    fetchAuditLog, createReport, logScanEvent,
+    subscribeAuditLog, subscribeAssets, unsubscribe,
+    clearCache, timeSince
   };
 })();

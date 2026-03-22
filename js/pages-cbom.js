@@ -1,4 +1,4 @@
-﻿/* pages-cbom.js — Cryptographic Bill of Materials (FR8)
+/* pages-cbom.js — Cryptographic Bill of Materials (FR8)
    Live Supabase data + CycloneDX 1.4 JSON export */
 
 window.QSR = window.QSR || {};
@@ -167,5 +167,5 @@ QSR.exportCBOM = function() {
   a.download = 'pnb-cbom-cyclonedx-' + new Date().toISOString().slice(0,10) + '.json';
   a.click();
   URL.revokeObjectURL(a.href);
-  alert('CycloneDX 1.4 JSON exported successfully!');
+  if (window.QSR && QSR.toast) QSR.toast('CycloneDX 1.4 JSON exported!', 'success');
 };
