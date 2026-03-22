@@ -85,6 +85,16 @@
 
     <!-- ── Sidebar ──────────────────────────────────────────── -->
     <nav class="sidebar" id="sidebar">
+
+      <!-- Sidebar branding / logo -->
+      <div style="padding:16px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;flex-direction:column;align-items:center;gap:8px;">
+        <img src="assets/pnb-logo.png" alt="Punjab National Bank"
+             style="width:80px;height:auto;object-fit:contain;filter:brightness(1.05) drop-shadow(0 2px 8px rgba(0,0,0,0.5));"
+             onerror="this.style.display='none'">
+        <div style="font-family:Rajdhani,sans-serif;font-size:13px;font-weight:700;color:#f5a623;letter-spacing:0.5px;text-align:center;line-height:1.3;">QSecure Radar</div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.35);letter-spacing:0.5px;text-transform:uppercase;">PSB Hackathon 2026</div>
+      </div>
+
       <div class="sidebar-nav" id="sidebar-nav">
         <div class="nav-item active" data-page="home" onclick="navigateTo('home')">
           <span class="nav-icon">&#127968;</span>
@@ -154,8 +164,9 @@
         <button id="hamburger-btn" onclick="toggleSidebar()" title="Toggle sidebar">&#9776;</button>
       <div class="header-page-title" id="page-title">Dashboard</div>
         <div class="header-logo">
-          <img src="assets/pnb-shield.png" alt="QSecure Radar" style="height:48px;"
-               onerror="this.outerHTML='<span style=\'font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:#8b1a2f;\'>&#128737; QSecure</span>'">
+          <img src="assets/pnb-logo.png" alt="Punjab National Bank"
+               style="height:42px;object-fit:contain;filter:brightness(0) invert(1) drop-shadow(0 1px 4px rgba(0,0,0,0.3));"
+               onerror="this.outerHTML='<span style=\'font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:#fff;\'>PNB</span>'">
         </div>
         <div class="header-user" id="header-user">Welcome!</div>
       </div>
