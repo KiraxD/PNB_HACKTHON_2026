@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    app.js - QSecure Radar SPA Router
    PSB Hackathon 2026 | Team REAL - KIIT
    All pages use QSR_DataLayer for live Supabase data.
@@ -129,34 +129,102 @@ function kpiCard(label, value, color, desc) {
 }
 
 function initHome() {
+  /* Draw charts with static defaults first — will be updated with live data */
   QSR.drawBars('chart-home-risk', [
     {label:'0-25 Critical',value:QSR.summary.criticalCount,color:'#e53e3e'},
-    {label:'26-50 High',value:3,color:'#ed8936'},
-    {label:'51-75 Mod',value:2,color:'#ecc94b'},
-    {label:'76-100 PQC',value:3,color:'#48bb78'}
+    {label:'26-50 High',   value:3, color:'#ed8936'},
+    {label:'51-75 Mod',    value:2, color:'#ecc94b'},
+    {label:'76-100 PQC',  value:3, color:'#48bb78'}
   ]);
   QSR.drawDonut('chart-home-pqc', [
-    {label:'PQC-Ready',value:QSR.summary.pqcReady,color:'#48bb78'},
-    {label:'At Risk',value:100-QSR.summary.pqcReady,color:'#e53e3e'}
+    {label:'PQC-Ready', value:QSR.summary.pqcReady,       color:'#48bb78'},
+    {label:'At Risk',   value:100-QSR.summary.pqcReady,   color:'#e53e3e'}
   ], QSR.summary.pqcReady + '%', 'Ready');
   QSR.drawBars('chart-home-tls', [
     {label:'TLS 1.3',value:6,color:'#48bb78'},{label:'TLS 1.2',value:3,color:'#ecc94b'},
     {label:'TLS 1.1',value:1,color:'#ed8936'},{label:'TLS 1.0',value:2,color:'#e53e3e'}
   ]);
 
-  if (window.QSR_DataLayer) {
-    window.QSR_DataLayer.fetchAuditLog(8).then(function(rows) {
-      if (!rows || !rows.length) return;
-      var feed = document.getElementById('home-audit-feed');
-      if (!feed) return;
-      feed.innerHTML = rows.map(function(s) {
-        return '<div class="alert-item"><div class="alert-dot info"></div>' +
-          '<div><div style="font-size:13px;font-weight:600;color:#1a1a2e;">' + s.msg + '</div>' +
-          '<div style="font-size:11px;color:#888;">' + s.time + '</div></div></div>';
-      }).join('') +
-        '<br><a style="font-size:13px;color:#8b1a2f;font-weight:600;cursor:pointer;" onclick="navigateTo(\'audit-log\')">View Full Audit Log &rarr;</a>';
-    });
-  }
+  if (!window.QSR_DataLayer) return;
+  var DL = window.QSR_DataLayer;
+
+  /* ── Live audit feed ───────────────────────────────────────── */
+  DL.fetchAuditLog(8).then(function(rows) {
+    if (!rows || !rows.length) return;
+    var feed = document.getElementById('home-audit-feed');
+    if (!feed) return;
+    feed.innerHTML = rows.map(function(s) {
+      var dot = (s.msg||'').toUpperCase().match(/VULN|FAIL|WEAK|POLICY/) ? 'critical' :
+                (s.msg||'').toUpperCase().match(/WARN|EXPIR/) ? 'warning' : 'info';
+      return '<div class="alert-item"><div class="alert-dot ' + dot + '"></div>' +
+        '<div><div style="font-size:13px;font-weight:600;color:#1a1a2e;">' + (s.msg||'—') + '</div>' +
+        '<div style="font-size:11px;color:#888;">' + (s.time||'—') + '</div></div></div>';
+    }).join('') +
+      '<br><a style="font-size:13px;color:#8b1a2f;font-weight:600;cursor:pointer;" onclick="navigateTo(\'audit-log\')">View Full Audit Log &rarr;</a>';
+  });
+
+  /* ── Live KPI cards ─────────────────────────────────────────── */
+  Promise.all([
+    DL.fetchAssets(),
+    DL.fetchCyberRating(),
+    DL.fetchPQCScores(),
+    DL.fetchCBOM()
+  ]).then(function(results) {
+    var assets  = results[0] || [];
+    var rating  = results[1] || {};
+    var pqc     = results[2] || {};
+    var cbom    = results[3] || {};
+
+    /* Helper to set KPI card value */
+    function setKPI(idx, val) {
+      var cards = document.querySelectorAll('[title]');
+      /* Find KPI cards by title attr (from kpiCard desc param) */
+      var kpiWrappers = document.querySelectorAll('.fade-in > div:first-child > div');
+      if (!kpiWrappers.length) return;
+      var card = kpiWrappers[idx];
+      if (card) {
+        var valEl = card.querySelector('div:nth-child(2)');
+        if (valEl) valEl.textContent = val;
+      }
+    }
+
+    var assetCount    = assets.length || QSR.summary.assetCount;
+    var avgQR         = rating.enterpriseScore || QSR.summary.avgRiskScore;
+    var cbomVulns     = cbom.weakCrypto   || QSR.summary.cbomVulns;
+    var pqcReadyPct   = pqc.elitePct !== undefined ? pqc.elitePct : QSR.summary.pqcReady;
+    var expiringCerts = assets.filter(function(a){ return a.cert === 'Expiring' || a.cert === 'Expired'; }).length || QSR.summary.expiringCerts;
+    var criticalCount = (pqc.criticalApps !== undefined ? pqc.criticalApps : QSR.summary.criticalCount);
+
+    /* Re-render the entire KPI row with fresh live data */
+    var kpiRow = document.querySelector('.fade-in > div:first-child');
+    if (kpiRow && kpiRow.style && kpiRow.style.display === 'grid') {
+      kpiRow.innerHTML =
+        kpiCard('Assets Discovered',    assetCount,             '#4299e1', 'Total internet-facing assets (FR4)') +
+        kpiCard('Avg QR Score (0-100)', avgQR + '/100',         '#e53e3e', 'Average Quantum Risk Score (FR9)') +
+        kpiCard('CBOM Vulnerabilities', cbomVulns,              '#ed8936', 'Weak crypto components (FR8)') +
+        kpiCard('PQC-Ready Assets',     pqcReadyPct + '%',      '#48bb78', 'Classified PQC-compliant (FR10)') +
+        kpiCard('Expiring Certs',       expiringCerts,          '#ecc94b', 'Within 30 days (FR7)') +
+        kpiCard('Critical Tier-4',      criticalCount,          '#c53030', 'Immediate action needed (FR10)');
+    }
+
+    /* Update PQC donut chart with live data */
+    QSR.drawDonut('chart-home-pqc', [
+      {label:'PQC-Ready', value: pqcReadyPct,     color:'#48bb78'},
+      {label:'At Risk',   value: 100-pqcReadyPct, color:'#e53e3e'}
+    ], pqcReadyPct + '%', 'Ready');
+
+    /* Update risk bar chart with live breakdown */
+    if (pqc.criticalPct !== undefined) {
+      QSR.drawBars('chart-home-risk', [
+        {label:'0-25 Critical', value: pqc.criticalPct || criticalCount, color:'#e53e3e'},
+        {label:'26-50 High',    value: pqc.legacyPct   || 3,             color:'#ed8936'},
+        {label:'51-75 Mod',     value: pqc.standardPct || 2,             color:'#ecc94b'},
+        {label:'76-100 PQC',    value: pqc.elitePct    || 3,             color:'#48bb78'}
+      ]);
+    }
+  }).catch(function(e) {
+    console.warn('[Home] Live KPI fetch error:', e.message);
+  });
 }
 
 /* ======================================================

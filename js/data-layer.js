@@ -225,7 +225,7 @@ window.QSR_DataLayer = (function() {
   /* ── Reports (FR14) ────────────────────────────────────────── */
   async function createReport(type, scope, format, email) {
     if (!ready()) {
-      alert('Report queued (demo mode) — connect Supabase to persist reports.');
+      console.log('[DataLayer] Demo mode — report not persisted to DB');
       return;
     }
     const user = JSON.parse(sessionStorage.getItem('qsr_user') || '{}');
@@ -239,18 +239,31 @@ window.QSR_DataLayer = (function() {
     });
     if (error) throw error;
 
-    // Write audit entry (FR15)
-    await window.QSR_Auth.logAction(
-      `REPORT_GENERATED:${type.toUpperCase()}`,
-      user.id, scope, '📊'
-    );
+    /* Write audit entry (FR15) */
+    try {
+      await db().from('audit_log').insert({
+        action: 'REPORT_GENERATED:' + (type||'').toUpperCase(),
+        target:  scope,
+        ip_addr: '—',
+        user_id: user.id,
+        icon:    '📊'
+      });
+    } catch(e) { /* audit logging is non-critical */ }
   }
 
   /* ── Log a scan event (FR13, FR15) ────────────────────────── */
   async function logScanEvent(target) {
     if (!ready()) return;
     const user = JSON.parse(sessionStorage.getItem('qsr_user') || '{}');
-    await window.QSR_Auth.logAction(`SCAN_INITIATED`, user.id, target, '🔍');
+    try {
+      await db().from('audit_log').insert({
+        action:  'SCAN_INITIATED',
+        target:  target,
+        ip_addr: '—',
+        user_id: user.id,
+        icon:    '🔍'
+      });
+    } catch(e) { /* non-critical */ }
   }
 
   /* ── Utility helpers ───────────────────────────────────────── */
