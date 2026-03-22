@@ -17,6 +17,7 @@
   <script src="js/charts.js"></script>
   <script src="js/network-graph.js"></script>
   <!-- Page Modules -->
+  <script src="js/toast.js"></script>
   <script src="js/pages-scanner.js"></script>
   <script src="js/pages-discovery.js"></script>
   <script src="js/pages-cbom.js"></script>
@@ -206,6 +207,48 @@ window.addEventListener('load', function() {
 
   /* Navigate to home */
   if (typeof navigateTo === 'function') navigateTo('home');
+
+  /* ── Supabase session verification & auth state listener ─── */
+  if (window.QSR_DB && window.QSR_SUPABASE_READY) {
+    /* Verify live session (async — runs after page loads) */
+    window.QSR_Auth.getSession().then(function(session) {
+      if (!session) {
+        /* No valid Supabase session — redirect to login */
+        sessionStorage.removeItem('qsr_user');
+        if (window.QSR && window.QSR.toast) {
+          QSR.toast('Session not found. Redirecting to login…', 'warning', 3000);
+        }
+        setTimeout(function() { window.location.href = 'index.html'; }, 1800);
+        return;
+      }
+      /* Sync live user metadata from Supabase auth */
+      var roleLabels = { soc:'SOC Analyst', admin:'Infrastructure Admin', compliance:'Compliance Officer' };
+      var authUser = session.user;
+      var liveUser = {
+        email: authUser.email,
+        role:  (authUser.user_metadata || {}).role || 'soc',
+        name:  (authUser.user_metadata || {}).full_name || authUser.email.split('@')[0],
+        id:    authUser.id
+      };
+      window._QSR_USER = liveUser;
+      sessionStorage.setItem('qsr_user', JSON.stringify(liveUser));
+      document.getElementById('sidebar-user-name').textContent = liveUser.name;
+      document.getElementById('sidebar-role-label').textContent = 'Role: ' + (roleLabels[liveUser.role] || 'SOC Analyst');
+      document.getElementById('header-user').textContent = 'Welcome, ' + liveUser.name + ' !';
+      if (liveUser.role === 'admin') {
+        document.querySelectorAll('.admin-only').forEach(function(el) { el.style.display = ''; });
+      }
+    });
+
+    /* Listen for auth state changes (auto-redirect on sign-out/expiry) */
+    window.QSR_Auth.onAuthChange(function(event) {
+      if (event === 'SIGNED_OUT') {
+        sessionStorage.removeItem('qsr_user');
+        if (window.QSR && window.QSR.toast) QSR.toast('You have been signed out.', 'warning', 0);
+        setTimeout(function() { window.location.href = 'index.html'; }, 1500);
+      }
+    });
+  }
 });
 
 /* ── Logout (FR15 — log event) ─────────────────────────────── */

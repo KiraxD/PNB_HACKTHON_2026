@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -56,7 +56,7 @@
       </div>
 
       <!-- Tab switcher -->
-      <div class="tab-switch">
+      <div class="tab-switch" id="main-tabs">
         <button id="tab-login"    class="tab-sw active" onclick="switchTab('login')">Sign In</button>
         <button id="tab-register" class="tab-sw"        onclick="switchTab('register')">Create Account</button>
       </div>
@@ -77,8 +77,9 @@
             <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:#888;font-size:13px;" onclick="togglePwd('login-password',this)">Show</span>
           </div>
         </div>
-        <div style="text-align:right;margin:-6px 0 10px;">
-          <a href="#" style="font-size:12px;color:#8b1a2f;text-decoration:none;" onclick="forgotPassword()">Forgot Password?</a>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:-6px 0 10px;">
+          <a href="#" style="font-size:12px;color:#8b1a2f;text-decoration:none;" onclick="switchPanel('magic-link')">&#128231; Magic Link</a>
+          <a href="#" style="font-size:12px;color:#8b1a2f;text-decoration:none;" onclick="switchPanel('forgot')" id="forgot-link">Forgot Password?</a>
         </div>
         <button id="btn-login" class="btn-auth" onclick="doSignIn()">Sign In</button>
         <div class="demo-hint" id="demo-hint">
@@ -90,7 +91,7 @@
       <div id="panel-mfa" style="display:none;">
         <div style="text-align:center;margin-bottom:16px;">
           <div style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:#8b1a2f;">Multi-Factor Authentication</div>
-          <div style="font-size:13px;color:#888;margin-top:4px;">Enter the 6-digit code sent to your registered device (FR1)</div>
+          <div style="font-size:13px;color:#888;margin-top:4px;">Enter the 6-digit code sent to your registered device</div>
         </div>
         <div class="otp-row" id="otp-boxes">
           <input class="otp-input" maxlength="1" type="text" autocomplete="one-time-code" oninput="otpMove(this,0)" onkeydown="otpBack(this,0,event)">
@@ -101,7 +102,65 @@
           <input class="otp-input" maxlength="1" type="text" oninput="otpMove(this,5)" onkeydown="otpBack(this,5,event)">
         </div>
         <button class="btn-auth" onclick="doVerifyOTP()" style="margin-top:14px;">Verify OTP</button>
-        <div style="text-align:center;margin-top:10px;"><a href="#" style="font-size:12px;color:#8b1a2f;" onclick="switchPanel('login')">Back to sign in</a></div>
+        <div style="text-align:center;margin-top:10px;"><a href="#" style="font-size:12px;color:#8b1a2f;" onclick="switchPanel('login')">&#8592; Back to sign in</a></div>
+      </div>
+
+      <!-- ── FORGOT PASSWORD PANEL ──────────────── -->
+      <div id="panel-forgot" style="display:none;">
+        <div style="text-align:center;margin-bottom:18px;">
+          <div style="font-size:32px;margin-bottom:8px;">&#128274;</div>
+          <div style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:#8b1a2f;">Reset Your Password</div>
+          <div style="font-size:13px;color:#888;margin-top:4px;">Enter your email and we'll send you a reset link.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input id="forgot-email" type="email" class="form-input" placeholder="your.id@pnb.bank.in"
+            onkeydown="if(event.key==='Enter') doForgotPassword()">
+        </div>
+        <button id="btn-forgot" class="btn-auth" onclick="doForgotPassword()">&#9993; Send Reset Link</button>
+        <div style="text-align:center;margin-top:12px;">
+          <a href="#" style="font-size:12px;color:#8b1a2f;" onclick="switchPanel('login')">&#8592; Back to sign in</a>
+        </div>
+      </div>
+
+      <!-- ── MAGIC LINK PANEL ───────────────────── -->
+      <div id="panel-magic-link" style="display:none;">
+        <div style="text-align:center;margin-bottom:18px;">
+          <div style="font-size:32px;margin-bottom:8px;">&#128231;</div>
+          <div style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:#8b1a2f;">Passwordless Sign In</div>
+          <div style="font-size:13px;color:#888;margin-top:4px;">We'll email you a one-click sign-in link. No password needed.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input id="magic-email" type="email" class="form-input" placeholder="your.id@pnb.bank.in"
+            onkeydown="if(event.key==='Enter') doMagicLink()">
+        </div>
+        <button id="btn-magic" class="btn-auth" onclick="doMagicLink()">&#9889; Send Magic Link</button>
+        <div class="demo-hint">A secure sign-in link will be delivered to your inbox. Valid for 1 hour.</div>
+        <div style="text-align:center;margin-top:12px;">
+          <a href="#" style="font-size:12px;color:#8b1a2f;" onclick="switchPanel('login')">&#8592; Back to sign in</a>
+        </div>
+      </div>
+
+      <!-- ── RESET PASSWORD PANEL (after email link) ── -->
+      <div id="panel-reset-password" style="display:none;">
+        <div style="text-align:center;margin-bottom:18px;">
+          <div style="font-size:32px;margin-bottom:8px;">&#128273;</div>
+          <div style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:#8b1a2f;">Set New Password</div>
+          <div style="font-size:13px;color:#888;margin-top:4px;">Choose a strong new password for your account.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">New Password</label>
+          <div style="position:relative;">
+            <input id="new-password" type="password" class="form-input" placeholder="Minimum 8 characters">
+            <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:#888;font-size:13px;" onclick="togglePwd('new-password',this)">Show</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Confirm New Password</label>
+          <input id="new-password-confirm" type="password" class="form-input" placeholder="Re-enter password">
+        </div>
+        <button id="btn-reset-pwd" class="btn-auth" onclick="doResetPassword()">&#128274; Update Password</button>
       </div>
 
       <!-- ── REGISTER PANEL ──────────────────────── -->
@@ -116,7 +175,10 @@
         </div>
         <div class="form-group">
           <label class="form-label">Password</label>
-          <input id="reg-password" type="password" class="form-input" placeholder="Minimum 8 characters">
+          <div style="position:relative;">
+            <input id="reg-password" type="password" class="form-input" placeholder="Minimum 8 characters">
+            <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:#888;font-size:13px;" onclick="togglePwd('reg-password',this)">Show</span>
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label">Role (FR2 — RBAC)</label>
@@ -217,21 +279,45 @@ body{background:#0d0d1a;}
 
 <script>
 var _tab = 'login';
+var _allPanels = ['login','mfa','register','forgot','magic-link','reset-password'];
 
 function switchTab(t) {
   _tab = t;
-  ['login','register'].forEach(function(x) {
-    document.getElementById('tab-' + x).classList.toggle('active', x === t);
-    document.getElementById('panel-' + x).style.display = (x === t) ? '' : 'none';
+  /* hide non-tab panels, show only tab panels */
+  _allPanels.forEach(function(x) {
+    var el = document.getElementById('panel-' + x);
+    if (el) el.style.display = (x === t) ? '' : 'none';
   });
-  document.getElementById('panel-mfa').style.display = 'none';
+  /* tab button highlights */
+  ['login','register'].forEach(function(x) {
+    var btn = document.getElementById('tab-' + x);
+    if (btn) btn.classList.toggle('active', x === t);
+  });
+  /* show/hide tabs row based on context */
+  var tabs = document.getElementById('main-tabs');
+  if (tabs) tabs.style.display = (t === 'login' || t === 'register') ? '' : 'none';
   clearStatus();
 }
 
 function switchPanel(p) {
-  ['login','mfa','register'].forEach(function(x) {
-    document.getElementById('panel-' + x).style.display = (x === p) ? '' : 'none';
+  _allPanels.forEach(function(x) {
+    var el = document.getElementById('panel-' + x);
+    if (el) el.style.display = (x === p) ? '' : 'none';
   });
+  /* hide tabs when showing special panels */
+  var tabs = document.getElementById('main-tabs');
+  if (tabs) tabs.style.display = (p === 'login' || p === 'register') ? '' : 'none';
+  clearStatus();
+  /* Pre-fill forgot email from login field */
+  if (p === 'forgot') {
+    var loginEmail = (document.getElementById('login-email') || {}).value || '';
+    if (loginEmail) { var fe = document.getElementById('forgot-email'); if (fe) fe.value = loginEmail; }
+  }
+  /* Pre-fill magic-link email from login field */
+  if (p === 'magic-link') {
+    var loginEmail = (document.getElementById('login-email') || {}).value || '';
+    if (loginEmail) { var me = document.getElementById('magic-email'); if (me) me.value = loginEmail; }
+  }
 }
 
 function showStatus(msg, type) {
@@ -259,7 +345,7 @@ function otpBack(el, i, e) {
 }
 function getOTP() { return Array.from(document.querySelectorAll('.otp-input')).map(function(x){ return x.value; }).join(''); }
 
-/* ── DB Status ── */
+/* ── DB Status + URL Mode Detection ── */
 window.addEventListener('load', function() {
   setTimeout(function() {
     var pill = document.getElementById('db-status-bar');
@@ -272,6 +358,20 @@ window.addEventListener('load', function() {
       text.textContent='Demo Mode — Supabase not configured';
     }
   }, 1000);
+
+  /* Detect password-recovery redirect from email link */
+  var params = new URLSearchParams(window.location.search);
+  var hashParams = new URLSearchParams(window.location.hash.replace('#',''));
+  var mode = params.get('mode') || hashParams.get('type');
+
+  if (mode === 'recover' || mode === 'recovery') {
+    /* Supabase sets the session automatically via the hash token */
+    switchPanel('reset-password');
+    showStatus('Enter your new password below.', 'info');
+  } else if (mode === 'magiclink' || hashParams.get('type') === 'magiclink') {
+    showStatus('Magic link verified! Redirecting...', 'success');
+    setTimeout(function() { window.location.href = 'dashboard.html'; }, 1000);
+  }
 });
 
 /* ── Sign In ── */
@@ -312,7 +412,6 @@ async function doVerifyOTP() {
 
   /* Demo: accept 123456 */
   if (otp === '123456') { window.location.href = 'dashboard.html'; return; }
-  
   var email = document.getElementById('login-email').value;
   sessionStorage.setItem('qsr_user', JSON.stringify({ email:email, role:'soc', name:email.split('@')[0], demo:true }));
   window.location.href = 'dashboard.html';
@@ -331,7 +430,7 @@ async function doSignUp() {
   btn.disabled = true; btn.textContent = 'Creating account...';
 
   if (window.QSR_Auth) {
-    var r = await window.QSR_Auth.signUp(email, pwd, { full_name:name, role });
+    var r = await window.QSR_Auth.signUp(email, pwd, { full_name:name, role:role });
     btn.disabled = false; btn.textContent = 'Create Account';
     if (r.success) { showStatus('Account created! Check your email to confirm.','success'); switchTab('login'); return; }
     showStatus(r.error || 'Registration failed.','error'); return;
@@ -339,16 +438,90 @@ async function doSignUp() {
 
   await new Promise(function(r){ setTimeout(r, 800); });
   btn.disabled = false; btn.textContent = 'Create Account';
-  sessionStorage.setItem('qsr_user', JSON.stringify({ email, role, name, demo:true }));
+  sessionStorage.setItem('qsr_user', JSON.stringify({ email:email, role:role, name:name, demo:true }));
   showStatus('Demo account created! Signing you in...','success');
   setTimeout(function(){ window.location.href = 'dashboard.html'; }, 1000);
 }
 
-function forgotPassword() {
-  var email = document.getElementById('login-email').value.trim();
-  if (!email) { showStatus('Enter your email first, then click Forgot Password.','error'); return; }
-  if (window.QSR_Auth && window.QSR_Auth.resetPassword) { window.QSR_Auth.resetPassword(email); }
-  showStatus('Password reset email sent to ' + email,'success');
+/* ── Forgot Password ── */
+async function doForgotPassword() {
+  var email = (document.getElementById('forgot-email').value || '').trim();
+  if (!email) { showStatus('Please enter your email address.','error'); return; }
+
+  var btn = document.getElementById('btn-forgot');
+  btn.disabled = true; btn.textContent = 'Sending...';
+
+  if (window.QSR_Auth && window.QSR_Auth.resetPassword) {
+    var r = await window.QSR_Auth.resetPassword(email);
+    btn.disabled = false; btn.textContent = '&#9993; Send Reset Link';
+    if (r && r.success) {
+      showStatus('&#10003; Reset link sent to ' + email + ' — check your inbox.', 'success');
+    } else {
+      showStatus((r && r.error) || 'Could not send reset email. Check the address and try again.', 'error');
+    }
+    return;
+  }
+
+  /* Demo mode */
+  await new Promise(function(r){ setTimeout(r, 800); });
+  btn.disabled = false; btn.innerHTML = '&#9993; Send Reset Link';
+  showStatus('Demo: reset link would be sent to ' + email, 'info');
+}
+
+/* ── Magic Link ── */
+async function doMagicLink() {
+  var email = (document.getElementById('magic-email').value || '').trim();
+  if (!email) { showStatus('Please enter your email address.','error'); return; }
+
+  var btn = document.getElementById('btn-magic');
+  btn.disabled = true; btn.textContent = 'Sending...';
+
+  if (window.QSR_Auth && window.QSR_Auth.signInWithMagicLink) {
+    var r = await window.QSR_Auth.signInWithMagicLink(email);
+    btn.disabled = false; btn.innerHTML = '&#9889; Send Magic Link';
+    if (r && r.success) {
+      showStatus('&#10003; Magic link sent to ' + email + ' — click it to sign in instantly!', 'success');
+    } else {
+      showStatus((r && r.error) || 'Could not send magic link. Please try again.', 'error');
+    }
+    return;
+  }
+
+  /* Demo mode */
+  await new Promise(function(r){ setTimeout(r, 900); });
+  btn.disabled = false; btn.innerHTML = '&#9889; Send Magic Link';
+  showStatus('Demo: magic link would be emailed to ' + email, 'info');
+}
+
+/* ── Reset Password (after clicking email link) ── */
+async function doResetPassword() {
+  var pwd1 = (document.getElementById('new-password').value || '');
+  var pwd2 = (document.getElementById('new-password-confirm').value || '');
+  if (pwd1.length < 8) { showStatus('Password must be at least 8 characters.','error'); return; }
+  if (pwd1 !== pwd2)   { showStatus('Passwords do not match.','error'); return; }
+
+  var btn = document.getElementById('btn-reset-pwd');
+  btn.disabled = true; btn.textContent = 'Updating...';
+
+  if (window.QSR_DB) {
+    try {
+      var _a = await window.QSR_DB.auth.updateUser({ password: pwd1 });
+      if (_a.error) throw _a.error;
+      btn.disabled = false; btn.innerHTML = '&#128274; Update Password';
+      showStatus('&#10003; Password updated! Redirecting to dashboard...', 'success');
+      setTimeout(function() { window.location.href = 'dashboard.html'; }, 1500);
+      return;
+    } catch(e) {
+      btn.disabled = false; btn.innerHTML = '&#128274; Update Password';
+      showStatus(e.message || 'Update failed. Try requesting a new reset link.', 'error');
+      return;
+    }
+  }
+
+  /* Demo mode */
+  await new Promise(function(r){ setTimeout(r, 700); });
+  btn.disabled = false; btn.innerHTML = '&#128274; Update Password';
+  showStatus('Demo: password would be updated.', 'info');
 }
 </script>
 </body>

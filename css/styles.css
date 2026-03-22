@@ -1,4 +1,4 @@
-﻿/* =============================================================
+/* =============================================================
    styles.css - QSecure Radar Premium Design System
    PSB Hackathon 2026 | Team REAL
    ============================================================= */
@@ -527,10 +527,66 @@ html,body { height:100%; font-family:'Exo 2',sans-serif; font-size:14px; color:v
 /* PQC recs */
 .pqc-recs { display: flex; flex-direction: column; }
 
-/* Pulse animation for realtime dot */
 @keyframes pulse {
   0%,100% { opacity: 1; } 50% { opacity: 0.3; }
 }
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); }
 }
+
+/* ── Skeleton Loaders ─────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -800px 0; }
+  100% { background-position:  800px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #e8eaf0 25%, #f3f4f8 37%, #e8eaf0 63%);
+  background-size: 800px 100%;
+  animation: shimmer 1.5s infinite linear;
+  border-radius: 6px;
+}
+.skeleton-row {
+  height: 36px; margin-bottom: 6px; border-radius: 6px;
+}
+.skeleton-text {
+  height: 14px; margin-bottom: 8px; border-radius: 4px;
+}
+.skeleton-text.short { width: 60%; }
+.skeleton-text.medium { width: 80%; }
+.skeleton-kpi {
+  height: 80px; border-radius: 10px;
+}
+.skeleton-table {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.loading-skeleton {
+  display: flex; flex-direction: column; gap: 6px; padding: 8px 0;
+}
+
+/* ── Page Transitions ─────────────────────────────────────── */
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-transition {
+  animation: pageFadeIn 0.22s ease both;
+}
+
+/* ── Live Feed (Realtime) ─────────────────────────────────── */
+@keyframes liveSlideIn {
+  from { opacity: 0; transform: translateX(-12px); background: rgba(72,187,120,0.12); }
+  to   { opacity: 1; transform: translateX(0);      background: transparent; }
+}
+.alert-item-live {
+  animation: liveSlideIn 0.4s ease both;
+}
+
+/* ── Connection status dot ───────────────────────────────── */
+.live-dot {
+  display: inline-block;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #48bb78;
+  animation: pulse 2s ease infinite;
+  margin-right: 4px;
+}
+

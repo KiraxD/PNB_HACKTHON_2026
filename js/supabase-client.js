@@ -69,10 +69,42 @@ window.QSR_Auth = {
   },
 
   resetPassword: async function(email) {
-    if (!window.QSR_DB) return;
-    var prodUrl = 'https://qsecure-radar.vercel.app';
-    await QSR_DB.auth.resetPasswordForEmail(email, {
-      redirectTo: prodUrl + '/index.html'
+    if (!window.QSR_DB) return { success: false, error: 'Supabase not connected' };
+    try {
+      var prodUrl = 'https://qsecure-radar.vercel.app';
+      var { error } = await QSR_DB.auth.resetPasswordForEmail(email, {
+        redirectTo: prodUrl + '/index.html?mode=recover'
+      });
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch(e) { return { success: false, error: e.message }; }
+  },
+
+  signInWithMagicLink: async function(email) {
+    if (!window.QSR_DB) return { success: false, error: 'Supabase not connected' };
+    try {
+      var prodUrl = 'https://qsecure-radar.vercel.app';
+      var { error } = await QSR_DB.auth.signInWithOtp({
+        email: email,
+        options: {
+          emailRedirectTo: prodUrl + '/dashboard.html'
+        }
+      });
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch(e) { return { success: false, error: e.message }; }
+  },
+
+  getSession: async function() {
+    if (!window.QSR_DB) return null;
+    try { var { data } = await QSR_DB.auth.getSession(); return (data || {}).session || null; }
+    catch(e) { return null; }
+  },
+
+  onAuthChange: function(callback) {
+    if (!window.QSR_DB || typeof callback !== 'function') return null;
+    return QSR_DB.auth.onAuthStateChange(function(event, session) {
+      callback(event, session);
     });
   }
 };

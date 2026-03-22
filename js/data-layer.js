@@ -11,29 +11,52 @@ window.QSR_DataLayer = (function() {
   function db() { return window.QSR_DB; }
   function ready() { return !!db() && window.QSR_SUPABASE_READY; }
 
-  /* ── Generic query wrapper with fallback ───────────────────── */
+  /* ── In-memory cache (5-min TTL) ──────────────────────────── */
+  var _cache = {};
+  var CACHE_TTL = 5 * 60 * 1000;
+
+  function getCached(key) {
+    var entry = _cache[key];
+    if (entry && (Date.now() - entry.ts) < CACHE_TTL) return entry.data;
+    return null;
+  }
+  function setCache(key, data) { _cache[key] = { ts: Date.now(), data: data }; }
+  function clearCache(table) {
+    if (table) {
+      Object.keys(_cache).forEach(function(k) { if (k.startsWith(table)) delete _cache[k]; });
+    } else { _cache = {}; }
+  }
+
+  /* ── Generic query wrapper with cache + fallback ───────────── */
   async function query(table, fallbackKey, opts) {
+    var cacheKey = table + JSON.stringify(opts || {});
+    var cached = getCached(cacheKey);
+    if (cached) { return cached; }
+
     if (!ready()) {
-      console.log(`[DataLayer] Fallback → data.js mock for "${table}"`);
-      return window.QSR[fallbackKey] || [];
+      var fb = fallbackKey ? (window.QSR[fallbackKey] || []) : [];
+      return Array.isArray(fb) ? fb : [];
     }
     try {
-      let q = db().from(table).select(opts?.select || '*');
+      var q = db().from(table).select(opts?.select || '*');
       if (opts?.order)  q = q.order(opts.order, { ascending: opts.asc !== false });
       if (opts?.limit)  q = q.limit(opts.limit);
       if (opts?.filter) opts.filter.forEach(f => { q = q.eq(f.col, f.val); });
-      const { data, error } = await q;
+      var { data, error } = await q;
       if (error) throw error;
-      return data || [];
+      var result = data || [];
+      setCache(cacheKey, result);
+      return result;
     } catch(e) {
       console.warn(`[DataLayer] Supabase error on "${table}":`, e.message, '→ using fallback');
-      return window.QSR[fallbackKey] || [];
+      var fb = fallbackKey ? (window.QSR[fallbackKey] || []) : [];
+      return Array.isArray(fb) ? fb : [];
     }
   }
 
   /* ── Assets (FR4, FR5, FR6, FR7) ──────────────────────────── */
   async function fetchAssets() {
-    const raw = await query('assets', 'assets', { order: 'created_at', asc: false });
+    var raw = await query('assets', 'assets', { order: 'created_at', asc: false });
     return raw.map(a => ({
       name:     a.name,
       url:      a.url      || '#',
@@ -44,13 +67,14 @@ window.QSR_DataLayer = (function() {
       risk:     a.risk     || 'Low',
       cert:     a.cert_status || 'Valid',
       key:      a.key_length || 2048,
+      qrScore:  a.qr_score   || undefined,
       lastScan: a.last_scan ? new Date(a.last_scan).toLocaleString('en-IN') : 'Never'
     }));
   }
 
   /* ── Domains (FR4 — DNS enumeration) ──────────────────────── */
   async function fetchDomains() {
-    const raw = await query('domains', 'domains', { order: 'detected', asc: false });
+    var raw = await query('domains', 'domains', { order: 'detected', asc: false });
     return raw.map(d => ({
       domain:     d.domain,
       detected:   d.detected ? new Date(d.detected).toLocaleDateString('en-IN') : '—',
@@ -62,7 +86,7 @@ window.QSR_DataLayer = (function() {
 
   /* ── SSL Certs (FR7) ───────────────────────────────────────── */
   async function fetchSSLs() {
-    const raw = await query('ssl_certs', 'ssls', { order: 'detected', asc: false });
+    var raw = await query('ssl_certs', 'ssls', { order: 'detected', asc: false });
     return raw.map(s => ({
       fingerprint: s.fingerprint || '—',
       detected:    s.detected ? new Date(s.detected).toLocaleDateString('en-IN') : '—',
@@ -73,9 +97,9 @@ window.QSR_DataLayer = (function() {
     }));
   }
 
-  /* ── IP Subnets (FR5 — TLS service identification) ─────────── */
+  /* ── IP Subnets (FR5) ──────────────────────────────────────── */
   async function fetchIPSubnets() {
-    const raw = await query('ip_subnets', 'ipSubnets', { order: 'detected', asc: false });
+    var raw = await query('ip_subnets', 'ipSubnets', { order: 'detected', asc: false });
     return raw.map(ip => ({
       ip:       ip.ip       || '—',
       ports:    ip.ports    || '—',
@@ -90,7 +114,7 @@ window.QSR_DataLayer = (function() {
 
   /* ── Software Inventory (FR4) ──────────────────────────────── */
   async function fetchSoftware() {
-    const raw = await query('software', 'software', { order: 'detected', asc: false });
+    var raw = await query('software', 'software', { order: 'detected', asc: false });
     return raw.map(sw => ({
       product:  sw.product  || '—',
       version:  sw.version  || '—',
@@ -104,7 +128,7 @@ window.QSR_DataLayer = (function() {
 
   /* ── Crypto Overview (FR5, FR6) ────────────────────────────── */
   async function fetchCryptoOverview() {
-    const raw = await query('crypto_overview', 'cryptoOverview', {
+    var raw = await query('crypto_overview', 'cryptoOverview', {
       select: '*, assets(name)',
       order: 'scanned_at', asc: false
     });
@@ -125,11 +149,13 @@ window.QSR_DataLayer = (function() {
 
   /* ── CBOM (FR8) ────────────────────────────────────────────── */
   async function fetchCBOM() {
-    // Summary stats from assets table
-    const raw = await query('cbom', 'cbom', { select: '*, assets(name)' });
+    /* If Supabase not connected, return mock data immediately */
+    if (!ready()) return window.QSR.cbom;
 
-    // Build grouped CBOM summary
-    const perApp = raw.map(c => ({
+    var raw = await query('cbom', null, { select: '*, assets(name)' });
+    if (!raw || !raw.length) return window.QSR.cbom; /* empty DB → fallback */
+
+    var perApp = raw.map(c => ({
       app:     c.app || c.assets?.name || '—',
       keyLen:  c.key_length  || '—',
       cipher:  c.cipher      || '—',
@@ -137,45 +163,46 @@ window.QSR_DataLayer = (function() {
       tls:     c.tls_version || '—'
     }));
 
-    if (!ready()) return window.QSR.cbom;
+    var weakCrypto = perApp.filter(p =>
+      (p.keyLen + '').startsWith('RSA-1024') || p.tls === '1.0'
+    ).length;
 
-    // Compute stats from live data
-    const weakCrypto = perApp.filter(p => p.keyLen.startsWith('1024') || p.tls === '1.0').length;
     return {
-      totalApps:    perApp.length   || 0,
-      sitesSurveyed: perApp.length  || 0,
-      activeCerts:  perApp.length   || 0,
-      weakCrypto:   weakCrypto,
-      certIssues:   weakCrypto,
+      totalApps:     perApp.length,
+      sitesSurveyed: perApp.length,
+      activeCerts:   perApp.length,
+      weakCrypto,
+      certIssues:    weakCrypto,
       perApp,
-      // Computed aggregates for charts
-      keyLengths: computeKeyLengths(perApp),
-      cipherUsage: computeCipherUsage(perApp),
-      certAuthorities: computeCAs(perApp),
-      encriptionProtocols: window.QSR.cbom.encriptionProtocols // keep static
+      keyLengths:          computeKeyLengths(perApp),
+      cipherUsage:         computeCipherUsage(perApp),
+      certAuthorities:     computeCAs(perApp),
+      encryptionProtocols: window.QSR.cbom.encryptionProtocols || window.QSR.cbom.encriptionProtocols
     };
   }
 
   /* ── PQC Scores (FR9, FR10, FR11) ─────────────────────────── */
   async function fetchPQCScores() {
-    const raw = await query('pqc_scores', 'pqcPosture', {
+    if (!ready()) return window.QSR.pqcPosture;
+
+    var raw = await query('pqc_scores', null, {
       select: '*, assets(name)',
       order: 'assessed_at', asc: false
     });
-    if (!ready() || raw === window.QSR.pqcPosture) return window.QSR.pqcPosture;
+    if (!raw || !raw.length) return window.QSR.pqcPosture;
 
-    const assets = raw.map(r => ({
+    var assets = raw.map(r => ({
       name:       r.asset_name || r.assets?.name || '—',
       score:      r.score       || 0,
       status:     r.status      || 'Legacy',
       pqcSupport: r.pqc_support || false
     }));
 
-    const elite    = assets.filter(a => a.status.includes('Elite')).length;
-    const standard = assets.filter(a => a.status === 'Standard').length;
-    const legacy   = assets.filter(a => a.status === 'Legacy').length;
-    const critical = assets.filter(a => a.status === 'Critical').length;
-    const total    = assets.length || 1;
+    var elite    = assets.filter(a => a.status.includes('Elite')).length;
+    var standard = assets.filter(a => a.status === 'Standard').length;
+    var legacy   = assets.filter(a => a.status === 'Legacy').length;
+    var critical = assets.filter(a => a.status === 'Critical').length;
+    var total    = assets.length || 1;
 
     return {
       ...window.QSR.pqcPosture,
@@ -192,7 +219,7 @@ window.QSR_DataLayer = (function() {
   async function fetchCyberRating() {
     if (!ready()) return window.QSR.cyberRating;
     try {
-      const { data, error } = await db().from('cyber_rating')
+      var { data, error } = await db().from('cyber_rating')
         .select('*').order('calculated_at', { ascending: false }).limit(1).single();
       if (error) throw error;
       return {
@@ -209,17 +236,24 @@ window.QSR_DataLayer = (function() {
 
   /* ── Audit Log (FR15) ─────────────────────────────────────── */
   async function fetchAuditLog(limit) {
-    const raw = await query('audit_log', 'recentScans', {
-      order:  'created_at',
-      asc:    false,
-      limit:  limit || 8
-    });
-    if (!ready() || raw === window.QSR.recentScans) return window.QSR.recentScans;
-    return raw.map(r => ({
-      icon: r.icon || '📋',
-      msg:  r.action + (r.target ? ` — ${r.target}` : ''),
-      time: r.created_at ? timeSince(r.created_at) : '—'
-    }));
+    if (!ready()) return window.QSR.recentScans;
+    var cacheKey = 'audit_log_' + (limit || 8);
+    var cached = getCached(cacheKey);
+    if (cached) return cached;
+    try {
+      var { data, error } = await db().from('audit_log')
+        .select('*').order('created_at', { ascending: false }).limit(limit || 8);
+      if (error) throw error;
+      var result = (data || []).map(r => ({
+        icon: r.icon || '📋',
+        msg:  r.action + (r.target ? ` — ${r.target}` : ''),
+        time: r.created_at ? timeSince(r.created_at) : '—'
+      }));
+      if (result.length) setCache(cacheKey, result);
+      return result.length ? result : window.QSR.recentScans;
+    } catch(e) {
+      return window.QSR.recentScans;
+    }
   }
 
   /* ── Reports (FR14) ────────────────────────────────────────── */
@@ -228,57 +262,69 @@ window.QSR_DataLayer = (function() {
       console.log('[DataLayer] Demo mode — report not persisted to DB');
       return;
     }
-    const user = JSON.parse(sessionStorage.getItem('qsr_user') || '{}');
-    const { error } = await db().from('reports').insert({
-      type,
-      scope,
-      format:     format || 'PDF',
-      email,
-      created_by: user.id,
-      delivered:  false
+    var user = JSON.parse(sessionStorage.getItem('qsr_user') || '{}');
+    var { error } = await db().from('reports').insert({
+      type, scope, format: format || 'PDF', email,
+      created_by: user.id || null, delivered: false
     });
     if (error) throw error;
-
-    /* Write audit entry (FR15) */
     try {
       await db().from('audit_log').insert({
-        action: 'REPORT_GENERATED:' + (type||'').toUpperCase(),
-        target:  scope,
-        ip_addr: '—',
-        user_id: user.id,
-        icon:    '📊'
+        action: 'REPORT_GENERATED:' + (type || '').toUpperCase(),
+        target: scope, ip_addr: '—', icon: '📊'
       });
+      clearCache('audit_log');
     } catch(e) { /* audit logging is non-critical */ }
   }
 
   /* ── Log a scan event (FR13, FR15) ────────────────────────── */
   async function logScanEvent(target) {
     if (!ready()) return;
-    const user = JSON.parse(sessionStorage.getItem('qsr_user') || '{}');
     try {
       await db().from('audit_log').insert({
-        action:  'SCAN_INITIATED',
-        target:  target,
-        ip_addr: '—',
-        user_id: user.id,
-        icon:    '🔍'
+        action: 'SCAN_INITIATED', target, ip_addr: '—', icon: '🔍'
       });
+      clearCache('audit_log');
     } catch(e) { /* non-critical */ }
+  }
+
+  /* ── Real-time subscriptions ───────────────────────────────── */
+  function subscribeAuditLog(callback) {
+    if (!ready()) return null;
+    return db().channel('qsr_audit_' + Date.now())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'audit_log' },
+        function(payload) {
+          clearCache('audit_log');
+          if (callback) callback(payload.new);
+        })
+      .subscribe();
+  }
+
+  function subscribeAssets(callback) {
+    if (!ready()) return null;
+    return db().channel('qsr_assets_' + Date.now())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assets' },
+        function(payload) {
+          clearCache('assets');
+          if (callback) callback(payload);
+        })
+      .subscribe();
+  }
+
+  function unsubscribe(channel) {
+    if (channel && db()) { try { db().removeChannel(channel); } catch(e) {} }
   }
 
   /* ── Utility helpers ───────────────────────────────────────── */
   function timeSince(iso) {
-    const secs = Math.floor((Date.now() - new Date(iso)) / 1000);
-    if (secs < 60)   return secs + 's ago';
-    if (secs < 3600) return Math.floor(secs/60) + 'm ago';
-    if (secs < 86400)return Math.floor(secs/3600) + 'h ago';
-    return Math.floor(secs/86400) + 'd ago';
+    var secs = Math.floor((Date.now() - new Date(iso)) / 1000);
+    if (secs < 60)    return secs + 's ago';
+    if (secs < 3600)  return Math.floor(secs / 60) + 'm ago';
+    if (secs < 86400) return Math.floor(secs / 3600) + 'h ago';
+    return Math.floor(secs / 86400) + 'd ago';
   }
 
   function computeKeyLengths(items) {
-    const counts = {};
-    items.forEach(i => { counts[i.keyLen] = (counts[i.keyLen]||0)+1; });
-    const colors = {'1024-bit':'#e53e3e','2048-bit':'#ed8936','4096-bit':'#48bb78'};
     return Object.entries(counts).map(([label,value]) => ({
       label, value, color: colors[label] || '#4299e1'
     }));

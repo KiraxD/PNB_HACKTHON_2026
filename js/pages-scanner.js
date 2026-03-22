@@ -1,4 +1,4 @@
-﻿/* pages-scanner.js — Live TLS/Cipher Scanner (Core Problem Statement)
+/* pages-scanner.js — Live TLS/Cipher Scanner (Core Problem Statement)
    Uses SSL Labs API + crt.sh to scan public-facing PNB assets in real time.
    Validates quantum-proof cipher deployment and generates CBOM entries.
    FR4, FR5, FR6, FR7, FR8, FR9 */
@@ -95,7 +95,7 @@ QSR.pages.scanner = function(container) {
 QSR.runTLSScan = async function() {
   const input = document.getElementById('scan-input');
   let host = (input?.value || '').trim().replace(/^https?:\/\//,'').replace(/\/.*/,'');
-  if (!host) { alert('Please enter a domain to scan.'); return; }
+  if (!host) { if(window.QSR&&QSR.toast) QSR.toast('Please enter a domain to scan.', 'warning'); return; }
 
   /* Show progress */
   const btn = document.getElementById('scan-btn');
@@ -166,7 +166,8 @@ QSR.runTLSScan = async function() {
 
   } catch(e) {
     setStatus('Scan failed: ' + e.message, 0);
-    alert('Scan error: ' + e.message);
+    if (window.QSR && QSR.toast) QSR.toast('Scan failed: ' + e.message, 'error');
+    else console.error(e);
   } finally {
     btn.disabled = false; btn.innerHTML = '&#9654;&nbsp; SCAN';
     setTimeout(() => { document.getElementById('scan-progress').style.display = 'none'; }, 1500);
@@ -320,7 +321,13 @@ QSR._renderScanResult = function(r) {
 QSR.saveScanToCBOM = async function() {
   const r = window._lastScanResult;
   if (!r) return;
-  if (!window.QSR_SUPABASE_READY) { alert('Not connected to Supabase — save to CBOM requires live mode.'); return; }
+  if (!window.QSR_SUPABASE_READY) {
+    if (window.QSR && QSR.toast) QSR.toast('Live Supabase session required to save CBOM.', 'warning');
+    return;
+  }
+
+  var saveBtn = document.querySelector('[onclick="QSR.saveScanToCBOM()"]');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
 
   try {
     const { error } = await window.QSR_DB.from('cbom').insert({
@@ -333,14 +340,21 @@ QSR.saveScanToCBOM = async function() {
     if (error) throw error;
 
     /* Also log to audit */
-    await window.QSR_DB.from('audit_log').insert({
-      action: 'CBOM_GENERATED',
-      target: r.host,
-      ip_addr: window._lastScanIP || '—',
-      icon: 'CBM'
-    });
-    alert('Scan result saved to CBOM database!');
-  } catch(e) { alert('Save failed: ' + e.message); }
+    try {
+      await window.QSR_DB.from('audit_log').insert({
+        action: 'CBOM_GENERATED', target: r.host, ip_addr: '—', icon: '📋'
+      });
+      if (window.QSR_DataLayer) QSR_DataLayer.clearCache('audit_log');
+      if (window.QSR_DataLayer) QSR_DataLayer.clearCache('cbom');
+    } catch(ae) { /* non-critical */ }
+
+    if (window.QSR && QSR.toast) QSR.toast('✓ Scan saved to CBOM database!', 'success');
+  } catch(e) {
+    if (window.QSR && QSR.toast) QSR.toast('Save failed: ' + e.message, 'error');
+    else console.error(e);
+  } finally {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '💾 Save to CBOM'; }
+  }
 };
 
 /* ── Export CycloneDX from scan ── */
