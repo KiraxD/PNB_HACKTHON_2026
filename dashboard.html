@@ -26,6 +26,8 @@
   <script src="js/pages-reporting.js"></script>
   <script src="js/pages-users.js"></script>
   <script src="js/pages-auditlog.js"></script>
+  <script src="js/zero-trust-engine.js"></script>
+  <script src="js/pages-zero-trust.js"></script>
   <!-- SPA Router -->
   <script src="js/app.js"></script>
   <style>
@@ -141,6 +143,12 @@
           <span class="nav-icon">&#128203;</span>
           <span class="nav-label">Audit Log</span>
         </div>
+        <!-- Zero Trust — highlighted entry -->
+        <div class="nav-item" data-page="zero-trust" onclick="navigateTo('zero-trust')"
+          style="background:linear-gradient(135deg,rgba(66,153,225,0.2),rgba(72,187,120,0.1));border-left:3px solid #4299e1;margin-top:4px;">
+          <span class="nav-icon">🛡</span>
+          <span class="nav-label" style="color:#fff;font-weight:700;">Zero Trust</span>
+        </div>
       </div>
 
       <!-- Sidebar bottom: user info + logout -->
@@ -168,6 +176,7 @@
                style="height:42px;object-fit:contain;filter:brightness(0) invert(1) drop-shadow(0 1px 4px rgba(0,0,0,0.3));"
                onerror="this.outerHTML='<span style=\'font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:#fff;\'>PNB</span>'">
         </div>
+        <div id="zt-trust-badge" style="flex-shrink:0;"></div>
         <div class="header-user" id="header-user">Welcome!</div>
       </div>
 

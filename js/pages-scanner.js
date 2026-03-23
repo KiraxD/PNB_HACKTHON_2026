@@ -104,6 +104,9 @@ QSR.pages.scanner = function(container) {
     <!-- Vulnerability Fix Cards -->
     <div id="vuln-cards" style="margin-top:14px;"></div>
 
+    <!-- Zero Trust Domain Assessment -->
+    <div id="zt-domain-panel" style="margin-top:14px;display:none;"></div>
+
     <!-- Action Buttons -->
     <div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;">
       <button class="btn-export" onclick="QSR.saveScanToCBOM()">💾 Save to CBOM Database</button>
@@ -203,6 +206,13 @@ QSR.runTLSScan = async function() {
     QSR._renderScanResult(result);
     QSR._setStage(4, 100, '✓ Scan complete — 3 data sources analysed');
     document.getElementById('scan-results').style.display = 'block';
+
+    /* Zero Trust: track scan + render ZT domain assessment */
+    if (window.ZeroTrust) {
+      window.ZeroTrust.trackScan(host);
+      var ztResult = window.ZeroTrust.assessDomain(host, result);
+      QSR._renderZTDomainPanel(ztResult);
+    }
 
     if (window.QSR_DataLayer) {
       try { await QSR_DataLayer.logScanEvent(host); } catch(e) {}
@@ -769,6 +779,43 @@ QSR._renderScanResult = function(r) {
       <div style="font-size:12px;color:#4a4a6a;margin-bottom:8px;"><strong>Problem:</strong> ${v.problem}</div>
       <div style="font-size:12px;color:#276749;background:rgba(72,187,120,0.08);padding:8px;border-radius:6px;"><strong>Fix:</strong> ${v.fix}</div>
     </div>`).join('')}</div>`;
+};
+
+/* ── Zero Trust Domain Assessment Panel ─────────────────────── */
+QSR._renderZTDomainPanel = function(zt) {
+  var el = document.getElementById('zt-domain-panel');
+  if (!el || !zt) return;
+  var col = zt.score >= 70 ? '#48bb78' : zt.score >= 40 ? '#ed8936' : '#e53e3e';
+  var icon = zt.level === 'COMPLIANT' ? '✅' : zt.level === 'PARTIAL' ? '⚠️' : '❌';
+  el.style.display = 'block';
+  el.innerHTML = `
+  <div class="panel" style="border-left:4px solid ${col};">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+      <div class="panel-title" style="margin:0;">🛡 Zero Trust Domain Assessment — ${zt.host}</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="font-family:Rajdhani,sans-serif;font-size:36px;font-weight:900;color:${col};">${zt.score}</div>
+        <div>
+          <div style="font-size:11px;color:#888;">/100 ZT Score</div>
+          <div style="font-weight:700;font-size:13px;color:${col};">${icon} ${zt.level}</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:5px;">
+      ${zt.findings.map(f => {
+        var fc = f.ok ? '#48bb78' : '#e53e3e';
+        return `<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 10px;border-radius:6px;background:${f.ok?'rgba(72,187,120,0.05)':'rgba(229,62,62,0.05)'};">
+          <span style="flex-shrink:0;font-size:14px;">${f.ok?'✅':'❌'}</span>
+          <div>
+            <div style="font-weight:700;font-size:12px;color:${fc};">${f.label}</div>
+            <div style="font-size:11px;color:#888;">${f.detail}</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="margin-top:12px;text-align:right;">
+      <button class="btn-scan-sm" onclick="navigateTo('zero-trust')" style="font-size:12px;">🛡 View Full ZT Dashboard →</button>
+    </div>
+  </div>`;
 };
 
 /* ── Gauge drawing ───────────────────────────────────────────── */
