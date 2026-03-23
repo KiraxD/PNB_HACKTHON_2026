@@ -726,3 +726,259 @@ html,body { height:100%; font-family:'Exo 2',sans-serif; font-size:14px; color:v
 .rh-badge-html { background: rgba(237,137,54,0.12); color: #c05621; border: 1px solid #ed8936; }
 .rh-badge-txt  { background: rgba(160,174,192,0.15);color: #4a5568; border: 1px solid #a0aec0; }
 
+/* ════════════════════════════════════════════════════════════════
+   ELITE SCANNER — Terminal UI
+   ════════════════════════════════════════════════════════════════ */
+.terminal-panel {
+  background: linear-gradient(135deg, #0d0d1a 0%, #1a1f2e 100%);
+  border: 1px solid rgba(66,153,225,0.3);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+  margin-bottom: 14px;
+}
+.terminal-topbar {
+  background: #1a1a2e;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.terminal-dot {
+  width: 12px; height: 12px; border-radius: 50%;
+  display: inline-block; flex-shrink: 0;
+}
+.terminal-input {
+  flex: 1;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(66,153,225,0.4);
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  padding: 11px 16px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+  width: 100%;
+}
+.terminal-input:focus {
+  border-color: #4299e1;
+  box-shadow: 0 0 0 3px rgba(66,153,225,0.15);
+}
+.terminal-input::placeholder { color: #555; }
+
+/* Scan stages */
+.scan-stages {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 10px 0 4px;
+}
+.scan-stage {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  background: rgba(0,0,0,0.06);
+  border: 1px solid rgba(0,0,0,0.08);
+  transition: all 0.3s ease;
+}
+.scan-stage.stage-active {
+  background: rgba(66,153,225,0.15);
+  color: #4299e1;
+  border-color: #4299e1;
+  box-shadow: 0 0 12px rgba(66,153,225,0.2);
+}
+.scan-stage.stage-done {
+  background: rgba(72,187,120,0.12);
+  color: #48bb78;
+  border-color: #48bb78;
+}
+.stage-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: currentColor;
+  animation: pulse 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.scan-stage.stage-done .stage-dot { animation: none; }
+
+/* Scan history row */
+.scan-history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 10px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.15s;
+  gap: 12px;
+}
+.scan-history-row:hover { background: rgba(139,26,47,0.04); }
+.scan-hist-dot {
+  width: 12px; height: 12px; border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px currentColor;
+}
+
+/* Compare mode */
+.btn-scan-sm {
+  background: rgba(139,26,47,0.1);
+  color: var(--crimson);
+  border: 1px solid rgba(139,26,47,0.3);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-family: 'Exo 2', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-scan-sm:hover { background: rgba(139,26,47,0.18); border-color: var(--crimson); }
+
+/* Vulnerability Fix Cards */
+.vuln-card {
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+  border-left: 4px solid;
+  border-top: 1px solid rgba(0,0,0,0.06);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.vuln-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+/* ════════════════════════════════════════════════════════════════
+   ELITE PQC PAGE — Tier Cards
+   ════════════════════════════════════════════════════════════════ */
+.pqc-tier-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 14px;
+}
+@media (max-width: 900px) { .pqc-tier-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 580px) { .pqc-tier-grid { grid-template-columns: 1fr; } }
+
+.pqc-tier-card {
+  background: var(--panel);
+  border-radius: 14px;
+  padding: 24px 18px 18px;
+  box-shadow: var(--shadow);
+  border-top: 4px solid;
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.pqc-tier-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  opacity: 0.04;
+  background: linear-gradient(135deg, currentColor 0%, transparent 100%);
+}
+.pqc-tier-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+.tier-elite   { border-color: #48bb78; }
+.tier-standard{ border-color: #4299e1; }
+.tier-legacy  { border-color: #ed8936; }
+.tier-critical{ border-color: #e53e3e; }
+.tier-num {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 56px;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.tier-elite .tier-num    { color: #48bb78; }
+.tier-standard .tier-num { color: #4299e1; }
+.tier-legacy .tier-num   { color: #ed8936; }
+.tier-critical .tier-num { color: #e53e3e; }
+.tier-label {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+.tier-sublabel { font-size: 11px; color: var(--text-muted); margin-bottom: 8px; }
+.tier-desc { font-size: 11px; color: var(--text-light); line-height: 1.5; }
+
+/* NIST algo cards */
+.nist-algo-card {
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(0,0,0,0.07);
+}
+.nist-algo-card:last-child { border-bottom: none; }
+
+/* Score bar shimmer on page load */
+@keyframes scoreBarIn { from { width: 0% !important; } }
+.score-bar-animate { animation: scoreBarIn 0.8s ease both; }
+
+/* ════════════════════════════════════════════════════════════════
+   ELITE AUDIT LOG
+   ════════════════════════════════════════════════════════════════ */
+.audit-stats-strip {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+@media (max-width: 900px) { .audit-stats-strip { grid-template-columns: repeat(3, 1fr); } }
+.audit-stat {
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 14px;
+  text-align: center;
+  box-shadow: var(--shadow);
+  border: 1px solid rgba(0,0,0,0.05);
+}
+.audit-stat-val {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--crimson);
+  line-height: 1;
+}
+.audit-stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+/* Timeline view */
+.tl-item {
+  position: relative;
+  margin-bottom: 18px;
+  padding: 12px 16px;
+  background: var(--panel);
+  border-radius: 10px;
+  border-left: 3px solid;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  margin-left: 8px;
+}
+.tl-dot {
+  position: absolute;
+  left: -19px;
+  top: 14px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px currentColor;
+}
+.tl-time {
+  font-size: 11px;
+  color: #888;
+  margin-bottom: 4px;
+}
+.tl-body { font-size: 13px; }
+
+
