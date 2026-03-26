@@ -215,44 +215,47 @@ QSR.runTLSScan = async function() {
   document.getElementById('compare-results').style.display = 'none';
 
   try {
-    QSR._setStage(0, 10, `Resolving ${host} via Cloudflare DoH + MX + NS records...`);
+    var maxRetries = 25;
+    var startNew = 'on';
+    var ep = null;
+    QSR._setStage(0, 10, `Contacting Qualys SSL Labs for ${host}...`);
 
-    /* Run 5 sources in parallel: A + AAAA + MX + NS + crt.sh + headers */
-    var [dnsData, dnsAAAA, dnsMX, dnsNS, crtData, headerData] = await Promise.all([
-      QSR._fetchDNS(host, 'A'),
-      QSR._fetchDNS(host, 'AAAA'),
-      QSR._fetchDNS(host, 'MX'),
-      QSR._fetchDNS(host, 'NS'),
-      QSR._fetchCRT(host),
-      QSR._fetchHeaders(host)
-    ]);
-    dnsData.aaaa = (dnsAAAA.ips || []);
-    dnsData.mx   = (dnsMX.ips  || []);
-    dnsData.ns   = (dnsNS.ips  || []);
+    for (var i = 0; i < maxRetries; i++) {
+      var r = await fetch('/api/ssllabs?host=' + encodeURIComponent(host) + '&startNew=' + startNew);
+      if (!r.ok) throw new Error('Proxy error: ' + r.statusText);
+      var j = await r.json();
+      if (j.error) throw new Error(j.error);
+      if (j.status === 'ERROR') throw new Error(j.statusMessage || 'SSL Labs scan failed');
+      
+      if (j.status === 'READY') {
+        if (!j.endpoints || !j.endpoints.length) throw new Error('No endpoints found for domain');
+        ep = j.endpoints[0];
+        if (ep.statusMessage === 'Ready' && ep.details) break;
+      }
 
-    QSR._setStage(1, 38, 'Parsing ' + (crtData.count||0) + ' CT log entries from crt.sh...');
-    await QSR._delay(200);
+      var pct = j.status === 'DNS' ? 20 : 40 + (i * 2);
+      var msg = j.status === 'DNS' ? 'SSL Labs: Resolving DNS...' : 'SSL Labs: Handshake & Cipher sequence... ('+i+')';
+      QSR._setStage(1, Math.min(pct, 90), msg);
 
-    QSR._setStage(2, 60, 'Fingerprinting TLS profile from certificate metadata...');
-    await QSR._delay(200);
+      startNew = 'off';
+      await QSR._delay(6000);
+    }
 
-    QSR._setStage(3, 80, 'Analysing security headers + building CBOM...');
-    await QSR._delay(200);
+    if (!ep || !ep.details) throw new Error('SSL Labs scan timed out.');
 
-    var result = QSR._buildScanResult(host, dnsData, crtData, headerData);
+    QSR._setStage(3, 95, 'Analysing Qualys data + building CBOM...');
+    await QSR._delay(500);
 
-    QSR._setStage(4, 95, 'Computing quantum risk score...');
-    await QSR._delay(250);
+    var result = QSR._buildScanResultSSL(host, ep);
 
     window._lastScanResult = result;
     window._scanHistory.unshift({ host, result, time: new Date().toISOString() });
     if (window._scanHistory.length > 20) window._scanHistory.pop();
 
     QSR._renderScanResult(result);
-    QSR._setStage(4, 100, '✓ Scan complete — 5 data sources analysed');
+    QSR._setStage(4, 100, '✓ Scan complete — Powered by Qualys SSL Labs');
     document.getElementById('scan-results').style.display = 'block';
 
-    /* Zero Trust assessment */
     if (window.ZeroTrust) {
       window.ZeroTrust.trackScan(host);
       var ztResult = window.ZeroTrust.assessDomain(host, result);
@@ -260,7 +263,6 @@ QSR.runTLSScan = async function() {
     }
 
     if (window.QSR_DataLayer) {
-      /* Auto-save scan to DB (per-user) + audit log */
       try {
         await QSR_DataLayer.saveScanResult(host, result);
         if (window.showToast) showToast('✓ Scan saved to your history', 'success');
@@ -279,95 +281,6 @@ QSR.runTLSScan = async function() {
   }
 };
 
-/* ── Source 1: DNS-over-HTTPS (Cloudflare 1.1.1.1) ───────────── */
-/* type: 'A' | 'AAAA' | 'MX' | 'NS' | 'TXT' | 'CAA' */
-QSR._fetchDNS = async function(host, type) {
-  type = type || 'A';
-  var typeMap = { A:1, AAAA:28, MX:15, NS:2, TXT:16, CAA:257 };
-  var typeCode = typeMap[type] || 1;
-  try {
-    var r = await fetch(
-      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}&type=${type}`,
-      { headers: { 'accept': 'application/dns-json' }, signal: AbortSignal.timeout(6000) }
-    );
-    if (!r.ok) throw new Error('DoH ' + type + ' failed');
-    var j = await r.json();
-    var answers = (j.Answer || []).filter(a => a.type === typeCode);
-    /* Normalize data field per record type */
-    var ips = answers.map(a => {
-      if (type === 'MX') return (a.data || '').replace(/^\d+\s+/,'').replace(/\.$/,'');
-      if (type === 'NS') return (a.data || '').replace(/\.$/,'');
-      return a.data || '';
-    }).filter(Boolean);
-    return {
-      ok:    j.Status === 0,
-      ip:    ips[0] || null,
-      ips:   ips,
-      ttl:   answers[0]?.TTL || null,
-      rcode: j.Status,
-      type
-    };
-  } catch(e) {
-    console.warn('[DNS ' + type + ']', e.message);
-    return { ok: false, ip: null, ips: [], ttl: null, type };
-  }
-};
-
-/* ── Source 2: crt.sh Certificate Transparency logs ─────────── */
-QSR._fetchCRT = async function(host) {
-  try {
-    var r = await fetch(`https://crt.sh/?q=${encodeURIComponent(host)}&output=json`,
-      { signal: AbortSignal.timeout(10000) });
-    if (!r.ok) throw new Error('crt.sh unavailable');
-    var arr = await r.json();
-    if (!Array.isArray(arr)) return { certs: [], count: 0 };
-    /* Deduplicate by serial number and sort newest first */
-    var seen = new Set();
-    var unique = arr.filter(c => {
-      if (seen.has(c.serial_number)) return false;
-      seen.add(c.serial_number);
-      return true;
-    }).sort((a, b) => new Date(b.not_after) - new Date(a.not_after));
-    return { certs: unique, count: unique.length, raw: arr.length };
-  } catch(e) {
-    console.warn('[CRT]', e.message);
-    return { certs: [], count: 0, raw: 0 };
-  }
-};
-
-/* ── Source 3: Live HTTP headers via CORS proxy ──────────────── */
-QSR._fetchHeaders = async function(host) {
-  var proxies = [
-    'https://api.allorigins.win/get?url=' + encodeURIComponent('https://' + host + '/'),
-    'https://corsproxy.io/?url=' + encodeURIComponent('https://' + host + '/')
-  ];
-  for (var proxy of proxies) {
-    try {
-      var r = await fetch(proxy, { signal: AbortSignal.timeout(8000) });
-      if (!r.ok) continue;
-      var j = await r.json();
-      /* allorigins returns {contents, status:{http_code, content_type}} */
-      var hdrs   = {};
-      var status = j.status?.http_code || j.status_code || 200;
-      var ct     = j.status?.content_type || j.content_type || '';
-      /* Parse headers embedded in body if available */
-      var raw = j.headers || j.head || '';
-      if (typeof raw === 'object') {
-        Object.entries(raw).forEach(([k,v]) => { hdrs[k.toLowerCase()] = v; });
-      } else if (typeof raw === 'string') {
-        raw.split('\n').forEach(line => {
-          var m = line.match(/^([^:]+):\s*(.+)$/);
-          if (m) hdrs[m[1].toLowerCase().trim()] = m[2].trim();
-        });
-      }
-      /* allorigins also includes content-type in status */
-      if (ct) hdrs['content-type'] = ct;
-      return { ok: true, status, headers: hdrs, proxy: proxy.split('?')[0] };
-    } catch(e) { console.warn('[HEADERS proxy]', e.message); }
-  }
-  return { ok: false, status: null, headers: {}, proxy: null };
-};
-
 /* ── Compare two domains ─────────────────────────────────────── */
 QSR.runCompare = async function() {
   var hostA = (document.getElementById('scan-input-a')?.value || '').trim().replace(/^https?:\/\//,'').replace(/\/.*/,'');
@@ -377,12 +290,12 @@ QSR.runCompare = async function() {
   document.getElementById('scan-progress').style.display = 'block';
   document.getElementById('scan-results').style.display = 'none';
   document.getElementById('compare-results').style.display = 'none';
-  QSR._setStage(0, 15, `Scanning ${hostA} and ${hostB} in parallel...`);
+  QSR._setStage(0, 15, `Scanning ${hostA} and ${hostB} in parallel using SSL Labs...`);
 
   try {
     var [rA, rB] = await Promise.all([
-      QSR._fetchOneScan(hostA),
-      QSR._fetchOneScan(hostB)
+      QSR._pollOneSSL(hostA),
+      QSR._pollOneSSL(hostB)
     ]);
     QSR._setStage(4, 100, '✓ Compare complete!');
     document.getElementById('compare-results').style.display = 'block';
@@ -393,13 +306,81 @@ QSR.runCompare = async function() {
   }
 };
 
-QSR._fetchOneScan = async function(host) {
-  var [dnsData, crtData, headerData] = await Promise.all([
-    QSR._fetchDNS(host),
-    QSR._fetchCRT(host),
-    QSR._fetchHeaders(host)
-  ]);
-  return QSR._buildScanResult(host, dnsData, crtData, headerData);
+QSR._pollOneSSL = async function(host) {
+  var startNew = 'on';
+  for (var i = 0; i < 25; i++) {
+    var r = await fetch('/api/ssllabs?host=' + encodeURIComponent(host) + '&startNew=' + startNew);
+    var j = await r.json();
+    if (j.status === 'READY' && j.endpoints && j.endpoints.length) {
+      if (j.endpoints[0].details) return QSR._buildScanResultSSL(host, j.endpoints[0]);
+    }
+    startNew = 'off';
+    await QSR._delay(6000);
+  }
+  throw new Error('Timeout for ' + host);
+};
+
+/* ── Build scan result from SSL Labs JSON ────────────────────── */
+QSR._buildScanResultSSL = function(host, ep) {
+  var d = ep.details || {};
+  var cert = d.cert || {};
+  var ciphersRaw = (d.suites && d.suites.list) ? d.suites.list : [];
+  if (!ciphersRaw.length && d.suites && d.suites.length) {
+    ciphersRaw = d.suites[0].list || [];
+  }
+
+  var protocols = d.protocols || [];
+  var highestTls = '1.2';
+  protocols.forEach(p => {
+    if (p.name === 'TLS' && p.version > highestTls) highestTls = p.version;
+  });
+
+  var ciphers = ciphersRaw.map(c => {
+    return {
+      name: c.name,
+      strength: c.cipherStrength,
+      forward: c.q === 0 && !c.name.includes('RSA_WITH'),
+      quantum: false
+    };
+  });
+
+  var notBeforeMs = cert.notBefore || (Date.now() - 90*86400000);
+  var notAfterMs = cert.notAfter || (Date.now() + 180*86400000);
+  var daysLeft = Math.floor((notAfterMs - Date.now()) / 86400000);
+
+  var hsts = d.hstsPolicy ? d.hstsPolicy.status === 'PRESENT' : false;
+  var hstsMaxAge = d.hstsPolicy ? d.hstsPolicy.maxAge : null;
+
+  var keyAlg = cert.keyAlg || 'RSA';
+  var keySize = cert.keySize || 2048;
+  var secScore = hsts ? 3 : 0;
+  
+  var qVulnerable = keySize < 4096 || highestTls < '1.3' || ciphers.some(c => c.name.includes('RSA_WITH'));
+  var qScore = QSR._calcQuantumScore(keyAlg, keySize, highestTls, ciphers, secScore, daysLeft);
+
+  return {
+    host: host,
+    grade: ep.grade || 'C',
+    tlsVersion: highestTls,
+    keyAlg: keyAlg,
+    keySize: keySize,
+    sigAlg: cert.sigAlg || 'Unknown',
+    subject: cert.subject || 'CN=' + host,
+    issuer: cert.issuerSubject || 'Unknown CA',
+    notBefore: new Date(notBeforeMs).toLocaleDateString('en-IN'),
+    notAfter: new Date(notAfterMs).toLocaleDateString('en-IN'),
+    notBeforeMs, notAfterMs, daysLeft,
+    ciphers, qVulnerable, qScore, crtCount: 1,
+    resolvedIp: ep.ipAddress,
+    resolvedIps: [ep.ipAddress],
+    server: ep.serverSignature || 'Unknown',
+    hsts: hsts ? 'enabled' : null,
+    hstsMaxAge,
+    secHeaders: hsts ? [{name:'Strict-Transport-Security', val:'max-age='+hstsMaxAge, ok:true}] : [],
+    secScore,
+    sources: ['Qualys SSL Labs v3 API'],
+    scannedAt: new Date().toISOString()
+  };
 };
 
 
@@ -433,312 +414,6 @@ QSR._renderCompare = function(a, b) {
       ${a.qScore > b.qScore ? `<strong>${a.host}</strong> has a better quantum readiness score (+${a.qScore - b.qScore} points).` : a.qScore < b.qScore ? `<strong>${b.host}</strong> has a better quantum readiness score (+${b.qScore - a.qScore} points).` : 'Both domains have equal quantum readiness scores.'}
     </div>
   </div>`;
-};
-
-/* ── Build scan result ───────────────────────────────────────── */
-/* Accepts: host (str), dnsData (from _fetchDNS), crtData (from _fetchCRT),
-            headerData (from _fetchHeaders) — NO SSL Labs dependency         */
-QSR._buildScanResult = function(host, dnsData, crtData, headerData) {
-
-  /* ── 1. Parse real crt.sh CT log data ───────────────────── */
-  var certs    = (crtData && crtData.certs) ? crtData.certs : [];
-  var crtCount = (crtData && crtData.count) ? crtData.count : 0;
-  /* Most recent cert (newest not_after) */
-  var cert0 = certs[0] || null;
-
-  var crtIssuer    = cert0?.issuer_name || null;
-  var crtNotBefore = cert0?.not_before  || null;
-  var crtNotAfter  = cert0?.not_after   || null;
-  var crtSubject   = cert0?.name_value  || null;
-
-  var notBeforeMs = crtNotBefore ? new Date(crtNotBefore).getTime() : Date.now() - 90*86400000;
-  var notAfterMs  = crtNotAfter  ? new Date(crtNotAfter).getTime()  : Date.now() + 180*86400000;
-  var notBefore   = new Date(notBeforeMs).toLocaleDateString('en-IN');
-  var notAfter    = new Date(notAfterMs).toLocaleDateString('en-IN');
-  var daysLeft    = Math.floor((notAfterMs - Date.now()) / 86400000);
-
-  var issuer  = crtIssuer || 'Unknown CA';
-  var subject = crtSubject ? 'CN=' + crtSubject : 'CN=' + host;
-
-  /* ── 2. Real data from live HTTP headers ─────────────────── */
-  var hdrs   = (headerData && headerData.headers) ? headerData.headers : {};
-  var server = hdrs['server'] || hdrs['x-powered-by'] || null;
-  var hsts   = hdrs['strict-transport-security'] || null;
-  var csp    = hdrs['content-security-policy'];
-  var xframe = hdrs['x-frame-options'];
-  var xct    = hdrs['x-content-type-options'];
-  var refp   = hdrs['referrer-policy'];
-  /* Build security header score (real, per-domain) */
-  var secHeaders = [
-    { name:'Strict-Transport-Security',  val: hsts,   ok: !!hsts  },
-    { name:'Content-Security-Policy',    val: csp,    ok: !!csp   },
-    { name:'X-Frame-Options',            val: xframe, ok: !!xframe },
-    { name:'X-Content-Type-Options',     val: xct,    ok: !!xct   },
-    { name:'Referrer-Policy',            val: refp,   ok: !!refp  }
-  ];
-  var secScore = secHeaders.filter(h => h.ok).length; /* 0–5 */
-
-  /* HSTS maxAge — parse from header value */
-  var hstsMaxAge = null;
-  if (hsts) {
-    var m = hsts.match(/max-age=(\d+)/i);
-    hstsMaxAge = m ? parseInt(m[1]) : null;
-  }
-
-  /* ── 3. Real IP from DNS-over-HTTPS ─────────────────────── */
-  var resolvedIp  = (dnsData && dnsData.ip)  ? dnsData.ip  : null;
-  var resolvedIps = (dnsData && dnsData.ips) ? dnsData.ips : [];
-
-  /* ── 4. Infer TLS/cipher profile from real CA + all live evidence ─ */
-  var issuerL = issuer.toLowerCase();
-  var profile = QSR._inferProfileFromCA(issuerL, host, crtCount, daysLeft, server, hstsMaxAge);
-
-  var tlsVersion = profile.tls;
-  var keyAlg     = profile.keyAlg;
-  var keySize    = profile.keySize;
-  var sigAlg     = profile.sigAlg;
-  var grade      = profile.grade;
-  var ciphers    = profile.ciphers;
-
-  /* ── 5. Quantum scoring ──────────────────────────────────── */
-  var qVulnerable = keySize < 4096 || tlsVersion < '1.3' || ciphers.some(c => c.name.includes('RSA_WITH'));
-  var qScore = QSR._calcQuantumScore(keyAlg, keySize, tlsVersion, ciphers, secScore, daysLeft);
-
-  /* ── 6. Data source info ─────────────────────────────────── */
-  var sources = [];
-  if (resolvedIp)                  sources.push('DNS-over-HTTPS (A)');
-  if (dnsData.aaaa && dnsData.aaaa.length) sources.push('IPv6 (AAAA)');
-  if (dnsData.mx   && dnsData.mx.length)   sources.push('MX records');
-  if (dnsData.ns   && dnsData.ns.length)   sources.push('NS records');
-  if (crtCount > 0)                sources.push('crt.sh CT logs (' + crtCount + ' certs)');
-  if (headerData && headerData.ok) sources.push('live HTTP headers');
-
-  return {
-    host, grade, tlsVersion, keyAlg, keySize, sigAlg, subject, issuer,
-    notBefore, notAfter, notBeforeMs, notAfterMs, daysLeft,
-    ciphers, qVulnerable, qScore, crtCount,
-    resolvedIp, resolvedIps, server, hsts, hstsMaxAge, secHeaders, secScore,
-    sources,
-    scannedAt: new Date().toISOString()
-  };
-};
-
-
-
-
-
-/* ═══════════════════════════════════════════════════════════════
-   REAL TLS PROFILE ENGINE — Custom Multi-Source (No SSL Labs)
-   Evidence priority:
-     1. Real crt.sh issuer name   → CA-specific known defaults
-     2. Live HTTP/S response headers (Server, Alt-Svc, X-Powered-By)
-     3. HSTS maxAge               → upgrade TLS tier if long
-     4. Certificate key length    → parsed from OID in issuer string
-     5. CDN fingerprinting        → Cloudflare/Fastly/Akamai/AWS
-   Cipher suite list is assembled from evidence, not randomized.
-   ═══════════════════════════════════════════════════════════════ */
-
-/* Known CA → TLS profile knowledge base (curated, not randomized) */
-QSR._CA_PROFILES = [
-  { match: ["let's encrypt","letsencrypt","r3","e1","r10","r11"],
-    grade:'A', tls:'1.3', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_CHACHA20_POLY1305_SHA256',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false}
-    ]},
-  { match: ['digicert','digicert sha2'],
-    grade:'A', tls:'1.3', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_RSA_WITH_AES_256_CBC_SHA256',strength:256,forward:false,quantum:false}
-    ]},
-  { match: ['sectigo','comodo','usertrust'],
-    grade:'B', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_RSA_WITH_AES_256_CBC_SHA256',strength:256,forward:false,quantum:false},
-      {name:'TLS_RSA_WITH_AES_128_CBC_SHA',strength:128,forward:false,quantum:false}
-    ]},
-  { match: ['globalsign','alphassl'],
-    grade:'A', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:false,quantum:false}
-    ]},
-  { match: ['godaddy','go daddy','starfield'],
-    grade:'B', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA1withRSA',
-    ciphers:[
-      {name:'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_RSA_WITH_AES_256_CBC_SHA',strength:256,forward:false,quantum:false},
-      {name:'TLS_RSA_WITH_AES_128_CBC_SHA',strength:128,forward:false,quantum:false}
-    ]},
-  { match: ['entrust'],
-    grade:'A', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_RSA_WITH_AES_256_CBC_SHA256',strength:256,forward:false,quantum:false}
-    ]},
-  { match: ['amazon','amazonaws'],
-    grade:'A', tls:'1.3', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false}
-    ]},
-  { match: ['nic ','national informatics','nic.in','safescrypt','idrbt','e-mudhra'],
-    grade:'B', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_RSA_WITH_AES_256_CBC_SHA256',strength:256,forward:false,quantum:false},
-      {name:'TLS_RSA_WITH_AES_128_CBC_SHA',strength:128,forward:false,quantum:false}
-    ]},
-  { match: ['microsoft','azure'],
-    grade:'A', tls:'1.3', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false}
-    ]},
-  { match: ['google','gts','gsr'],
-    grade:'A+', tls:'1.3', keyAlg:'ECDSA', keySize:256, sigAlg:'SHA256withECDSA',
-    ciphers:[
-      {name:'TLS_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_CHACHA20_POLY1305_SHA256',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false}
-    ]},
-  { match: ['baltimore','cybertrust'],
-    grade:'A', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_RSA_WITH_AES_256_CBC_SHA256',strength:256,forward:false,quantum:false}
-    ]}
-];
-
-/* CDN fingerprint overrides (from server header / alt-svc / ip range) */
-QSR._CDN_OVERRIDES = [
-  { match: 'cloudflare',
-    grade:'A+', tls:'1.3', keyAlg:'ECDSA', keySize:256, sigAlg:'SHA256withECDSA',
-    ciphers:[
-      {name:'TLS_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_CHACHA20_POLY1305_SHA256',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false}
-    ]},
-  { match: 'fastly',
-    grade:'A', tls:'1.3', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false}
-    ]},
-  { match: 'akamai',
-    grade:'A', tls:'1.3', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false}
-    ]},
-  { match: 'gws', /* Google Web Server */
-    grade:'A+', tls:'1.3', keyAlg:'ECDSA', keySize:256, sigAlg:'SHA256withECDSA',
-    ciphers:[
-      {name:'TLS_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_CHACHA20_POLY1305_SHA256',strength:256,forward:true,quantum:false}
-    ]},
-  { match: 'nginx',
-    grade:'B', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_RSA_WITH_AES_256_CBC_SHA',strength:256,forward:false,quantum:false}
-    ]},
-  { match: 'apache',
-    grade:'B', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_RSA_WITH_AES_256_CBC_SHA',strength:256,forward:false,quantum:false}
-    ]}
-];
-
-/* REAL inference engine — purely evidence-driven, no random fallback */
-QSR._inferProfileFromCA = function(issuerL, host, crtCount, daysLeft, serverHeader, hstsMaxAge) {
-  var profile = null;
-  var serverL = (serverHeader || '').toLowerCase();
-
-  /* Step 1: CDN override — most accurate since server header is from live response */
-  for (var cdn of QSR._CDN_OVERRIDES) {
-    if (serverL.includes(cdn.match)) {
-      profile = Object.assign({}, cdn);
-      break;
-    }
-  }
-
-  /* Step 2: CA knowledge base match */
-  if (!profile) {
-    for (var caP of QSR._CA_PROFILES) {
-      if (caP.match.some(function(m) { return issuerL.includes(m); })) {
-        profile = Object.assign({}, caP);
-        break;
-      }
-    }
-  }
-
-  /* Step 3: Domain TLD heuristics — no server/CA data found */
-  if (!profile) {
-    var isGovIn = host.endsWith('.gov.in') || host.endsWith('.nic.in') || host.endsWith('.gov');
-    var isPNB   = host.endsWith('.pnb.co.in') || host.endsWith('.netpnb.com') || host.endsWith('.pnbindia.in');
-    if (isGovIn) {
-      profile = { grade:'B', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-        ciphers:[
-          {name:'TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384',strength:256,forward:true,quantum:false},
-          {name:'TLS_RSA_WITH_AES_256_CBC_SHA256',strength:256,forward:false,quantum:false}
-        ]};
-    } else if (isPNB) {
-      profile = { grade:'A', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-        ciphers:[
-          {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-          {name:'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-          {name:'TLS_RSA_WITH_AES_256_CBC_SHA256',strength:256,forward:false,quantum:false}
-        ]};
-    } else {
-      /* Absolute last resort — base profile from cert health signals only */
-      profile = { grade: daysLeft > 30 ? 'B' : daysLeft > 0 ? 'C' : 'T',
-        tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-        ciphers:[
-          {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-          {name:'TLS_RSA_WITH_AES_256_CBC_SHA256',strength:256,forward:false,quantum:false}
-        ]};
-    }
-  }
-
-  /* Deep-copy ciphers so mutations don't affect the template */
-  profile = JSON.parse(JSON.stringify(profile));
-
-  /* Signal upgrades from live evidence */
-  /* Expired cert → always T grade */
-  if (daysLeft <= 0) profile.grade = 'T';
-
-  /* HSTS with long maxAge → likely TLS 1.3 capable */
-  if (hstsMaxAge && hstsMaxAge >= 31536000 && profile.tls === '1.2') {
-    profile.tls = '1.3';
-    if (!profile.ciphers.some(c => c.name.startsWith('TLS_AES'))) {
-      profile.ciphers.unshift({name:'TLS_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false});
-    }
-  }
-
-  /* Alt-Svc h3 header → HTTP/3 implies QUIC + TLS 1.3 */
-  if (serverL.includes('h3') || issuerL.includes('h3')) {
-    profile.tls = '1.3';
-    if (profile.grade === 'B') profile.grade = 'A';
-  }
-
-  return profile;
 };
 
 /* ── Quantum Risk Score (granular evidence-based) ────────────── */
