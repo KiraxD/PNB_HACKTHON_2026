@@ -134,6 +134,8 @@ QSR.pages.scanner = function(container) {
     <div id="db-history-list"><div style="color:#888;font-size:13px;padding:6px 0;">Loading your scan history...</div></div>
   </div>`;
 
+  c.innerHTML = html;
+
   window._scanHistory = window._scanHistory || [];
   QSR._renderScanHistory();
   /* Load DB history asynchronously on page open */
@@ -763,7 +765,7 @@ QSR._calcQuantumScore = function(keyAlg, keySize, tls, ciphers, secScore, daysLe
   else if (daysLeft > 0) score -= 3;
   else score -= 10;
   return Math.max(0, Math.min(score, 100));
-
+};
 
 /* ── Render result ───────────────────────────────────────────── */
 QSR._renderScanResult = function(r) {
