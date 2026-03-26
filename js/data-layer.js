@@ -288,6 +288,76 @@ window.QSR_DataLayer = (function() {
     } catch(e) { /* non-critical */ }
   }
 
+  /* ── Save scan result to per-user history (FR4–FR9) ────────── */
+  async function saveScanResult(host, result) {
+    if (!ready()) return false;
+    var user = window._QSR_USER || JSON.parse(sessionStorage.getItem('qsr_user') || 'null');
+    if (!user || !user.id) return false;
+    try {
+      var { error } = await db().from('scan_history').insert({
+        user_id:      user.id,
+        host:         host,
+        grade:        result.grade        || null,
+        tls_version:  result.tlsVersion   || null,
+        key_alg:      result.keyAlg       || null,
+        key_size:     result.keySize      || null,
+        q_score:      result.qScore       || 0,
+        q_vulnerable: result.qVulnerable  || false,
+        issuer:       result.issuer       || null,
+        not_after:    result.notAfter     || null,
+        days_left:    result.daysLeft     || null,
+        cert_count:   result.crtCount     || 0,
+        sources:      result.sources      || [],
+        raw_result:   result
+      });
+      if (error) throw error;
+      clearCache('scan_history');
+      return true;
+    } catch(e) {
+      console.warn('[DataLayer] saveScanResult failed:', e.message);
+      return false;
+    }
+  }
+
+  /* ── Fetch user's scan history from DB ─────────────────────── */
+  async function fetchScanHistory(limit) {
+    if (!ready()) return [];
+    var cacheKey = 'scan_history_' + (limit || 20);
+    var cached = getCached(cacheKey);
+    if (cached) return cached;
+    try {
+      var { data, error } = await db().from('scan_history')
+        .select('*')
+        .order('scanned_at', { ascending: false })
+        .limit(limit || 20);
+      if (error) throw error;
+      var result = (data || []).map(function(r) {
+        return {
+          id:         r.id,
+          host:       r.host,
+          grade:      r.grade,
+          tlsVersion: r.tls_version,
+          keyAlg:     r.key_alg,
+          keySize:    r.key_size,
+          qScore:     r.q_score,
+          qVulnerable:r.q_vulnerable,
+          issuer:     r.issuer,
+          notAfter:   r.not_after,
+          daysLeft:   r.days_left,
+          crtCount:   r.cert_count,
+          sources:    r.sources,
+          rawResult:  r.raw_result,
+          scannedAt:  r.scanned_at
+        };
+      });
+      setCache(cacheKey, result);
+      return result;
+    } catch(e) {
+      console.warn('[DataLayer] fetchScanHistory failed:', e.message);
+      return [];
+    }
+  }
+
   /* ── Real-time subscriptions ───────────────────────────────── */
   function subscribeAuditLog(callback) {
     if (!ready()) return null;
@@ -361,6 +431,7 @@ window.QSR_DataLayer = (function() {
     fetchSoftware, fetchCryptoOverview, fetchNameservers,
     fetchCBOM, fetchPQCScores, fetchCyberRating,
     fetchAuditLog, createReport, logScanEvent,
+    saveScanResult, fetchScanHistory,
     subscribeAuditLog, subscribeAssets, unsubscribe,
     clearCache, timeSince
   };
