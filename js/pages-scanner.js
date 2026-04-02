@@ -352,9 +352,12 @@ QSR.runTLSScan = async function() {
 };
 
 /* ── Source 1: DNS-over-HTTPS (Cloudflare 1.1.1.1) ───────────── */
+window._qsrCache = window._qsrCache || {};
+
 /* type: 'A' | 'AAAA' | 'MX' | 'NS' | 'TXT' | 'CAA' */
 QSR._fetchDNS = async function(host, type) {
   type = type || 'A';
+  var cacheKey = 'dns_' + type + '_' + host;
   var typeMap = { A:1, AAAA:28, MX:15, NS:2, TXT:16, CAA:257 };
   var typeCode = typeMap[type] || 1;
   try {
@@ -371,7 +374,7 @@ QSR._fetchDNS = async function(host, type) {
       if (type === 'NS') return (a.data || '').replace(/\.$/,'');
       return a.data || '';
     }).filter(Boolean);
-    return {
+    var res = {
       ok:    j.Status === 0,
       ip:    ips[0] || null,
       ips:   ips,
@@ -379,7 +382,10 @@ QSR._fetchDNS = async function(host, type) {
       rcode: j.Status,
       type
     };
+    window._qsrCache[cacheKey] = res;
+    return res;
   } catch(e) {
+    if (window._qsrCache[cacheKey]) return window._qsrCache[cacheKey];
     console.warn('[DNS ' + type + ']', e.message);
     return { ok: false, ip: null, ips: [], ttl: null, type };
   }
@@ -387,6 +393,7 @@ QSR._fetchDNS = async function(host, type) {
 
 /* ── Source 2: crt.sh Certificate Transparency logs ─────────── */
 QSR._fetchCRT = async function(host) {
+  var cacheKey = 'crt_' + host;
   try {
     var r = await fetch(`https://crt.sh/?q=${encodeURIComponent(host)}&output=json`,
       { signal: AbortSignal.timeout(10000) });
@@ -400,8 +407,11 @@ QSR._fetchCRT = async function(host) {
       seen.add(c.serial_number);
       return true;
     }).sort((a, b) => new Date(b.not_after) - new Date(a.not_after));
-    return { certs: unique, count: unique.length, raw: arr.length };
+    var res = { certs: unique, count: unique.length, raw: arr.length };
+    window._qsrCache[cacheKey] = res;
+    return res;
   } catch(e) {
+    if (window._qsrCache[cacheKey]) return window._qsrCache[cacheKey];
     console.warn('[CRT]', e.message);
     return { certs: [], count: 0, raw: 0 };
   }
@@ -409,6 +419,7 @@ QSR._fetchCRT = async function(host) {
 
 /* ── Source 3: Live HTTP headers via CORS proxy ──────────────── */
 QSR._fetchHeaders = async function(host) {
+  var cacheKey = 'hdrs_' + host;
   var proxies = [
     'https://api.allorigins.win/get?url=' + encodeURIComponent('https://' + host + '/'),
     'https://corsproxy.io/?url=' + encodeURIComponent('https://' + host + '/')
@@ -434,9 +445,12 @@ QSR._fetchHeaders = async function(host) {
       }
       /* allorigins also includes content-type in status */
       if (ct) hdrs['content-type'] = ct;
-      return { ok: true, status, headers: hdrs, proxy: proxy.split('?')[0] };
+      var res = { ok: true, status, headers: hdrs, proxy: proxy.split('?')[0] };
+      window._qsrCache[cacheKey] = res;
+      return res;
     } catch(e) { console.warn('[HEADERS proxy]', e.message); }
   }
+  if (window._qsrCache[cacheKey]) return window._qsrCache[cacheKey];
   return { ok: false, status: null, headers: {}, proxy: null };
 };
 
@@ -468,6 +482,7 @@ QSR.runCompare = async function() {
 /* ── Source 4: OUR OWN TLS Scanner (Supabase Edge Function) ───── */
 /* Performs a REAL TLS handshake server-side via Deno.connectTls() */
 QSR._fetchTLSProbe = async function(host) {
+  var cacheKey = 'tls_' + host;
   var SCANNER_URL = SUPABASE_URL + '/functions/v1/tls-scanner';
   try {
     var r = await fetch(SCANNER_URL, {
@@ -482,7 +497,7 @@ QSR._fetchTLSProbe = async function(host) {
     if (!r.ok) throw new Error('Edge fn returned ' + r.status);
     var d = await r.json();
     if (d.error && !d.tls_version) throw new Error(d.error);
-    return {
+    var res = {
       ok: true,
       tls_version: d.tls_version || null,
       cipher_suite: d.cipher_suite || null,
@@ -500,7 +515,10 @@ QSR._fetchTLSProbe = async function(host) {
       scan_ms: d.scan_ms || 0,
       source: 'QSecure TLS Scanner (Edge Function)'
     };
+    window._qsrCache[cacheKey] = res;
+    return res;
   } catch(e) {
+    if (window._qsrCache[cacheKey]) return window._qsrCache[cacheKey];
     console.warn('[TLS Scanner]', e.message);
     /* Fallback: Performance API protocol detection */
     try {
@@ -511,13 +529,15 @@ QSR._fetchTLSProbe = async function(host) {
       var entries = performance.getEntriesByName(testUrl);
       if (entries.length && entries[0].nextHopProtocol) {
         var protocol = entries[0].nextHopProtocol;
-        return {
+        var fbRes = {
           ok: true,
           tls_version: protocol === 'h3' ? '1.3' : protocol === 'h2' ? '1.2+' : null,
           cipher_suite: null, key_algorithm: null, key_size: null,
           protocol: protocol,
           source: 'Performance API (fallback)'
         };
+        window._qsrCache[cacheKey] = fbRes;
+        return fbRes;
       }
     } catch(e2) { /* silent */ }
     return { ok: false };
