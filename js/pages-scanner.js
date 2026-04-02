@@ -80,8 +80,8 @@ QSR.pages.scanner = function(container) {
       <!-- Quantum Gauge -->
       <div class="panel" style="display:flex;flex-direction:column;align-items:center;">
         <div class="panel-title" style="width:100%;">⏳ Quantum Risk Score</div>
-        <div style="position:relative;width:220px;">
-          <canvas id="scanner-gauge" style="width:100%;display:block;"></canvas>
+        <div style="position:relative;width:220px;height:220px;">
+          <canvas id="scanner-gauge" style="width:220px;height:220px;display:block;"></canvas>
           <div id="scanner-gauge-label" style="position:absolute;bottom:10%;left:50%;transform:translateX(-50%);text-align:center;">
             <div style="font-family:Rajdhani,sans-serif;font-size:44px;font-weight:800;color:#e53e3e;" id="qr-score-big">—</div>
             <div style="font-size:11px;color:#888;">/100 QR Score</div>
