@@ -3,9 +3,11 @@
   "name": "qsecure-radar",
   "buildCommand": "",
   "outputDirectory": ".",
+  "cleanUrls": true,
+  "trailingSlash": false,
   "routes": [
     { "src": "/dashboard(.*)", "dest": "/dashboard.html" },
-    { "src": "/((?!assets|css|js|favicon).*)", "dest": "/index.html" }
+    { "src": "/((?!assets|css|js|favicon|api).*)", "dest": "/index.html" }
   ],
   "headers": [
     {
