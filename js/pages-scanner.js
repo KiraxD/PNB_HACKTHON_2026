@@ -904,7 +904,7 @@ QSR._renderScanResult = function(r) {
   /* Quantum Threat Radar (replaces static gauge) */
   var scoreColor = r.qScore >= 70 ? '#48bb78' : r.qScore >= 40 ? '#ed8936' : '#e53e3e';
   var scoreEl = document.getElementById('qr-score-big');
-  if (scoreEl) { scoreEl.textContent = r.qScore; scoreEl.style.color = scoreColor; }
+  var gaugeLabel = document.getElementById('scanner-gauge-label');
   /* Build threat blips from vulnerabilities */
   var radarThreats = [];
   if (r.keySize < 4096) radarThreats.push({label:'Weak Key', severity:0.7});
@@ -914,8 +914,12 @@ QSR._renderScanResult = function(r) {
   if (!r.hsts) radarThreats.push({label:'No HSTS', severity:0.3});
   if (r.daysLeft !== null && r.daysLeft < 30) radarThreats.push({label:'Cert Expiry', severity:0.8});
   if (QSR._drawThreatRadar) {
+    /* Hide the HTML overlay — the radar draws its own score on canvas */
+    if (gaugeLabel) gaugeLabel.style.display = 'none';
     QSR._drawThreatRadar('scanner-gauge', r.qScore, radarThreats);
   } else {
+    if (gaugeLabel) gaugeLabel.style.display = '';
+    if (scoreEl) { scoreEl.textContent = r.qScore; scoreEl.style.color = scoreColor; }
     _drawScannerGauge('scanner-gauge', r.qScore, scoreColor);
   }
 
