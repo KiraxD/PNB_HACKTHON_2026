@@ -124,6 +124,18 @@ QSR.pages.scanner = function(container) {
     <!-- Scan Diff Regression Tracker -->
     <div id="scan-diff-panel" style="margin-top:14px;display:none;"></div>
 
+    <!-- V2 Innovations -->
+    <div id="insurance-calc-panel" style="margin-top:14px;display:none;"></div>
+    <div id="crypto-dna-panel" style="margin-top:14px;display:none;"></div>
+    <div id="quantum-tracker-panel" style="margin-top:14px;display:none;"></div>
+    <div id="shadow-it-panel" style="margin-top:14px;display:none;"></div>
+    <div id="handshake-sim-panel" style="margin-top:14px;display:none;"></div>
+    <div id="sunset-calendar-panel" style="margin-top:14px;display:none;"></div>
+    <div id="crypto-debt-panel" style="margin-top:14px;display:none;"></div>
+    <div id="rbi-compliance-panel" style="margin-top:14px;display:none;"></div>
+    <div id="defense-rings-panel" style="margin-top:14px;display:none;"></div>
+    <div id="predictive-ai-panel" style="margin-top:14px;display:none;"></div>
+
     <!-- Zero Trust Domain Assessment -->
     <div id="zt-domain-panel" style="margin-top:14px;display:none;"></div>
 
@@ -292,6 +304,18 @@ QSR.runTLSScan = async function() {
       QSR._renderDNSIntelligence(dnsIntel, dnsData);
     }
     if (QSR._renderNISTCompliance)  QSR._renderNISTCompliance(result);
+
+    /* ── V2 Innovation renderers ── */
+    if (QSR._renderInsuranceCalc)   QSR._renderInsuranceCalc(result);
+    if (QSR._renderCryptoDNA)       QSR._renderCryptoDNA(result);
+    if (QSR._renderQuantumTracker)  QSR._renderQuantumTracker(result);
+    if (QSR._renderShadowIT)        QSR._renderShadowIT(result, crtData.certs || []);
+    if (QSR._renderHandshakeSim)    QSR._renderHandshakeSim(result);
+    if (QSR._renderSunsetCalendar)  QSR._renderSunsetCalendar(result);
+    if (QSR._renderCryptoDebt)      QSR._renderCryptoDebt(result);
+    if (QSR._renderRBICompliance)   QSR._renderRBICompliance(result);
+    if (QSR._renderDefenseRings)    QSR._renderDefenseRings(result);
+    if (QSR._renderPredictiveAI)    QSR._renderPredictiveAI(result);
 
     /* ── Scan diff: compare with previous scan of same host ── */
     if (window.QSR_DataLayer && QSR_DataLayer.fetchLastScanForHost) {
