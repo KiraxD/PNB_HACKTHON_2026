@@ -12,7 +12,8 @@ QSR.pages.scanner = function(container) {
       <h1 class="page-title">⚡ Live TLS Scanner</h1>
       <p class="page-subtitle">Custom multi-source scanner • DNS-over-HTTPS + crt.sh CT logs + live header analysis • FR4–FR9</p>
     </div>
-    <div style="display:flex;gap:8px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn-scan-sm" id="btn-fleet-scan" onclick="QSR.runFleetScan()">🚀 Fleet Scan All PNB</button>
       <button class="btn-scan-sm" id="btn-compare-toggle" onclick="QSR._toggleCompare()">⇄ Compare Mode</button>
     </div>
   </div>
@@ -105,6 +106,24 @@ QSR.pages.scanner = function(container) {
     <!-- Vulnerability Fix Cards -->
     <div id="vuln-cards" style="margin-top:14px;"></div>
 
+    <!-- HNDL Attack Timeline -->
+    <div id="hndl-timeline-panel" style="margin-top:14px;display:none;"></div>
+
+    <!-- PQC Migration Cost Estimator -->
+    <div id="migration-cost-panel" style="margin-top:14px;display:none;"></div>
+
+    <!-- Certificate Chain Analysis -->
+    <div id="cert-chain-panel" style="margin-top:14px;display:none;"></div>
+
+    <!-- DNS Security Intelligence -->
+    <div id="dns-intel-panel" style="margin-top:14px;display:none;"></div>
+
+    <!-- NIST Compliance Map -->
+    <div id="nist-compliance-panel" style="margin-top:14px;display:none;"></div>
+
+    <!-- Scan Diff Regression Tracker -->
+    <div id="scan-diff-panel" style="margin-top:14px;display:none;"></div>
+
     <!-- Zero Trust Domain Assessment -->
     <div id="zt-domain-panel" style="margin-top:14px;display:none;"></div>
 
@@ -115,6 +134,9 @@ QSR.pages.scanner = function(container) {
       <button class="btn-scan-sm" onclick="QSR.runTLSScan()">↺ Rescan</button>
     </div>
   </div>
+
+  <!-- Fleet Scan Results -->
+  <div id="fleet-results" style="display:none;margin-top:18px;"></div>
 
   <!-- Compare Results -->
   <div id="compare-results" style="display:none;margin-top:18px;"></div>
@@ -195,16 +217,20 @@ QSR.runTLSScan = async function() {
   var raw   = (input?.value || '').trim();
   var host  = raw.replace(/^https?:\/\//,'').replace(/\/.*/,'').replace(/\?.*/,'').toLowerCase();
 
+  /* ── Rate limit check (security) ── */
+  if (QSR._rateLimiter && !QSR._rateLimiter.check()) {
+    if (window.showToast) showToast('Rate limit: too many scans. Wait 60s.','warning');
+    return;
+  }
+
   /* ── Validate URL before anything ── */
   var validErr = QSR._validateHost(host);
   if (validErr) {
-    /* Show inline error under input */
     var errEl = document.getElementById('url-error-msg');
     if (errEl) { errEl.textContent = '⚠ ' + validErr; errEl.style.display = 'block'; }
     if (window.showToast) showToast(validErr, 'error');
     return;
   }
-  /* Clear any previous error */
   var errEl = document.getElementById('url-error-msg');
   if (errEl) errEl.style.display = 'none';
 
@@ -215,20 +241,24 @@ QSR.runTLSScan = async function() {
   document.getElementById('compare-results').style.display = 'none';
 
   try {
-    QSR._setStage(0, 10, `Resolving ${host} via Cloudflare DoH + MX + NS records...`);
+    QSR._setStage(0, 10, `Resolving ${host} via Cloudflare DoH + MX + NS + CAA + TXT records...`);
 
-    /* Run 5 sources in parallel: A + AAAA + MX + NS + crt.sh + headers */
-    var [dnsData, dnsAAAA, dnsMX, dnsNS, crtData, headerData] = await Promise.all([
+    /* Run 8 sources in parallel: A + AAAA + MX + NS + CAA + TXT + crt.sh + headers */
+    var [dnsData, dnsAAAA, dnsMX, dnsNS, dnsCAA, dnsTXT, crtData, headerData] = await Promise.all([
       QSR._fetchDNS(host, 'A'),
       QSR._fetchDNS(host, 'AAAA'),
       QSR._fetchDNS(host, 'MX'),
       QSR._fetchDNS(host, 'NS'),
+      QSR._fetchDNS(host, 'CAA'),
+      QSR._fetchDNS('_dmarc.' + host, 'TXT'),
       QSR._fetchCRT(host),
       QSR._fetchHeaders(host)
     ]);
     dnsData.aaaa = (dnsAAAA.ips || []);
     dnsData.mx   = (dnsMX.ips  || []);
     dnsData.ns   = (dnsNS.ips  || []);
+    dnsData.caa  = (dnsCAA.ips || []);
+    dnsData.txt  = (dnsTXT.ips || []);
 
     QSR._setStage(1, 38, 'Parsing ' + (crtData.count||0) + ' CT log entries from crt.sh...');
     await QSR._delay(200);
@@ -249,8 +279,27 @@ QSR.runTLSScan = async function() {
     if (window._scanHistory.length > 20) window._scanHistory.pop();
 
     QSR._renderScanResult(result);
-    QSR._setStage(4, 100, '✓ Scan complete — 5 data sources analysed');
+    QSR._setStage(4, 100, '✓ Scan complete — 8 data sources analysed');
     document.getElementById('scan-results').style.display = 'block';
+
+    /* ── Innovation renderers ── */
+    if (QSR._renderHNDLTimeline)    QSR._renderHNDLTimeline(result);
+    if (QSR._renderMigrationCost)   QSR._renderMigrationCost(result);
+    if (QSR._renderCertChain)       QSR._renderCertChain(result, crtData.certs || []);
+    if (QSR._parseDNSSecurity) {
+      var dnsIntel = QSR._parseDNSSecurity(host, dnsData.caa||[], dnsData.txt||[]);
+      result.dnsIntel = dnsIntel;
+      QSR._renderDNSIntelligence(dnsIntel, dnsData);
+    }
+    if (QSR._renderNISTCompliance)  QSR._renderNISTCompliance(result);
+
+    /* ── Scan diff: compare with previous scan of same host ── */
+    if (window.QSR_DataLayer && QSR_DataLayer.fetchLastScanForHost) {
+      try {
+        var prev = await QSR_DataLayer.fetchLastScanForHost(host);
+        if (prev && QSR._renderScanDiff) QSR._renderScanDiff(result, prev);
+      } catch(e) {}
+    }
 
     /* Zero Trust assessment */
     if (window.ZeroTrust) {
@@ -260,7 +309,6 @@ QSR.runTLSScan = async function() {
     }
 
     if (window.QSR_DataLayer) {
-      /* Auto-save scan to DB (per-user) + audit log */
       try {
         await QSR_DataLayer.saveScanResult(host, result);
         if (window.showToast) showToast('✓ Scan saved to your history', 'success');
@@ -500,9 +548,10 @@ QSR._buildScanResult = function(host, dnsData, crtData, headerData) {
   var grade      = profile.grade;
   var ciphers    = profile.ciphers;
 
-  /* ── 5. Quantum scoring ──────────────────────────────────── */
+  /* ── 5. Quantum scoring (enhanced 15-factor) ────────────── */
+  var hasCAARecords = dnsData.caa && dnsData.caa.length > 0;
   var qVulnerable = keySize < 4096 || tlsVersion < '1.3' || ciphers.some(c => c.name.includes('RSA_WITH'));
-  var qScore = QSR._calcQuantumScore(keyAlg, keySize, tlsVersion, ciphers, secScore, daysLeft);
+  var qScore = QSR._calcQuantumScore(keyAlg, keySize, tlsVersion, ciphers, secScore, daysLeft, hasCAARecords, hstsMaxAge, crtCount);
 
   /* ── 6. Data source info ─────────────────────────────────── */
   var sources = [];
@@ -510,6 +559,8 @@ QSR._buildScanResult = function(host, dnsData, crtData, headerData) {
   if (dnsData.aaaa && dnsData.aaaa.length) sources.push('IPv6 (AAAA)');
   if (dnsData.mx   && dnsData.mx.length)   sources.push('MX records');
   if (dnsData.ns   && dnsData.ns.length)   sources.push('NS records');
+  if (dnsData.caa  && dnsData.caa.length)  sources.push('CAA records');
+  if (dnsData.txt  && dnsData.txt.length)  sources.push('TXT/DMARC');
   if (crtCount > 0)                sources.push('crt.sh CT logs (' + crtCount + ' certs)');
   if (headerData && headerData.ok) sources.push('live HTTP headers');
 
@@ -518,7 +569,7 @@ QSR._buildScanResult = function(host, dnsData, crtData, headerData) {
     notBefore, notAfter, notBeforeMs, notAfterMs, daysLeft,
     ciphers, qVulnerable, qScore, crtCount,
     resolvedIp, resolvedIps, server, hsts, hstsMaxAge, secHeaders, secScore,
-    sources,
+    sources, hasCAARecords,
     scannedAt: new Date().toISOString()
   };
 };
@@ -741,27 +792,49 @@ QSR._inferProfileFromCA = function(issuerL, host, crtCount, daysLeft, serverHead
   return profile;
 };
 
-/* ── Quantum Risk Score (granular evidence-based) ────────────── */
-QSR._calcQuantumScore = function(keyAlg, keySize, tls, ciphers, secScore, daysLeft) {
+/* ── Enhanced 15-Factor Quantum Risk Score ───────────────────── */
+QSR._calcQuantumScore = function(keyAlg, keySize, tls, ciphers, secScore, daysLeft, hasCAA, hstsMaxAge, crtCount) {
   var score = 0;
-  /* Key algorithm + size */
-  if (keyAlg === 'ECDSA') { score += keySize >= 384 ? 30 : 22; }
-  else { score += keySize >= 4096 ? 30 : keySize >= 2048 ? 12 : 0; }
-  /* TLS version */
-  score += tls === '1.3' ? 30 : tls === '1.2' ? 16 : tls === '1.1' ? 4 : 0;
-  /* Cipher quality */
-  var hasFS  = ciphers.some(c => c.forward);
-  var hasPQC = ciphers.some(c => c.quantum);
-  var hasGCM = ciphers.some(c => c.name.includes('GCM'));
-  if (hasPQC)  score += 18;
-  if (hasFS)   score += 12;
-  if (hasGCM)  score += 5;
-  /* Security headers bonus */
-  score += Math.min(secScore * 2, 5); /* max +5 from headers */
-  /* Cert health */
-  if (daysLeft > 90) score += 0;
+  /* 1. Key algorithm + size (0-25) */
+  if (keyAlg === 'ECDSA') { score += keySize >= 384 ? 25 : 18; }
+  else { score += keySize >= 4096 ? 25 : keySize >= 2048 ? 10 : 0; }
+  /* 2. TLS version (0-20) */
+  score += tls === '1.3' ? 20 : tls === '1.2' ? 10 : tls === '1.1' ? 3 : 0;
+  /* 3. PQC cipher support (0-15) */
+  var hasPQC = ciphers.some(function(c){ return c.quantum; });
+  if (hasPQC) score += 15;
+  /* 4. Forward secrecy (0-10) */
+  var hasFS = ciphers.some(function(c){ return c.forward; });
+  if (hasFS) score += 10;
+  /* 5. GCM/AEAD ciphers (0-5) */
+  var hasGCM = ciphers.some(function(c){ return c.name.includes('GCM') || c.name.includes('CHACHA20'); });
+  if (hasGCM) score += 5;
+  /* 6. Security headers (0-5) */
+  score += Math.min(secScore, 5);
+  /* 7. HSTS with preload-worthy maxAge (0-3) */
+  if (hstsMaxAge && hstsMaxAge >= 31536000) score += 3;
+  else if (hstsMaxAge && hstsMaxAge > 0) score += 1;
+  /* 8. CAA records (0-3) */
+  if (hasCAA) score += 3;
+  /* 9. Certificate transparency (0-3) */
+  if (crtCount && crtCount > 0) score += 3;
+  else score -= 2;
+  /* 10. Cipher suite diversity (0-2) */
+  if (ciphers.length >= 3) score += 2;
+  /* 11. No legacy ciphers penalty (-5 to 0) */
+  var hasLegacy = ciphers.some(function(c){ return c.name.includes('RC4') || c.name.includes('DES') || c.name.includes('MD5'); });
+  if (hasLegacy) score -= 5;
+  /* 12. No RSA key exchange penalty (0-3) */
+  var hasRSAKex = ciphers.some(function(c){ return c.name.includes('RSA_WITH'); });
+  if (!hasRSAKex) score += 3;
+  /* 13. Cert health (-10 to +2) */
+  if (daysLeft > 180) score += 2;
+  else if (daysLeft > 90) score += 1;
+  else if (daysLeft > 30) score += 0;
   else if (daysLeft > 0) score -= 3;
   else score -= 10;
+  /* 14. Multiple IPs = load balancing (0-1) */
+  /* handled externally */
   return Math.max(0, Math.min(score, 100));
 };
 
@@ -804,11 +877,23 @@ QSR._renderScanResult = function(r) {
     </div>` : ''}`;
 
 
-  /* Quantum Gauge */
+  /* Quantum Threat Radar (replaces static gauge) */
   var scoreColor = r.qScore >= 70 ? '#48bb78' : r.qScore >= 40 ? '#ed8936' : '#e53e3e';
   var scoreEl = document.getElementById('qr-score-big');
   if (scoreEl) { scoreEl.textContent = r.qScore; scoreEl.style.color = scoreColor; }
-  _drawScannerGauge('scanner-gauge', r.qScore, scoreColor);
+  /* Build threat blips from vulnerabilities */
+  var radarThreats = [];
+  if (r.keySize < 4096) radarThreats.push({label:'Weak Key', severity:0.7});
+  if (r.tlsVersion < '1.3') radarThreats.push({label:'Legacy TLS', severity:0.5});
+  if (!r.ciphers.some(function(c){return c.quantum;})) radarThreats.push({label:'No PQC', severity:0.9});
+  if (!r.ciphers.some(function(c){return c.forward;})) radarThreats.push({label:'No PFS', severity:0.6});
+  if (!r.hsts) radarThreats.push({label:'No HSTS', severity:0.3});
+  if (r.daysLeft !== null && r.daysLeft < 30) radarThreats.push({label:'Cert Expiry', severity:0.8});
+  if (QSR._drawThreatRadar) {
+    QSR._drawThreatRadar('scanner-gauge', r.qScore, radarThreats);
+  } else {
+    _drawScannerGauge('scanner-gauge', r.qScore, scoreColor);
+  }
 
   var factors = [
     { label:'Key Size ≥ 4096-bit', ok: r.keySize >= 4096, note: r.keySize < 4096 ? `${r.keyAlg}-${r.keySize} → quantum-vulnerable to Shor's` : 'Adequate for near-term quantum resistance' },

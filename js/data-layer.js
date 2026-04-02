@@ -425,13 +425,37 @@ window.QSR_DataLayer = (function() {
     });
   }
 
+  /* ── Fetch last scan for a specific host (for diff tracking) ─ */
+  async function fetchLastScanForHost(host) {
+    if (!ready() || !host) return null;
+    try {
+      var { data, error } = await db().from('scan_history')
+        .select('*')
+        .eq('host', host)
+        .order('scanned_at', { ascending: false })
+        .limit(2); /* get 2: current + previous */
+      if (error) throw error;
+      /* Return the second result (previous scan), skip the one we just saved */
+      var prev = (data && data.length >= 2) ? data[1] : (data && data.length === 1 ? data[0] : null);
+      return prev ? {
+        host: prev.host, grade: prev.grade, tlsVersion: prev.tls_version,
+        keyAlg: prev.key_alg, keySize: prev.key_size, qScore: prev.q_score,
+        qVulnerable: prev.q_vulnerable, daysLeft: prev.days_left,
+        crtCount: prev.cert_count, scannedAt: prev.scanned_at
+      } : null;
+    } catch(e) {
+      console.warn('[DataLayer] fetchLastScanForHost failed:', e.message);
+      return null;
+    }
+  }
+
   /* ── Public API ────────────────────────────────────────── */
   return {
     fetchAssets, fetchDomains, fetchSSLs, fetchIPSubnets,
     fetchSoftware, fetchCryptoOverview, fetchNameservers,
     fetchCBOM, fetchPQCScores, fetchCyberRating,
     fetchAuditLog, createReport, logScanEvent,
-    saveScanResult, fetchScanHistory,
+    saveScanResult, fetchScanHistory, fetchLastScanForHost,
     subscribeAuditLog, subscribeAssets, unsubscribe,
     clearCache, timeSince
   };
