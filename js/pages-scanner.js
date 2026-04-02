@@ -937,49 +937,105 @@ QSR._inferProfileFromCA = function(issuerL, host, crtCount, daysLeft, serverHead
   return profile;
 };
 
-/* ── Enhanced 15-Factor Quantum Risk Score ───────────────────── */
+/* ══════════════════════════════════════════════════════════════════
+   QUANTUM RISK SCORE v3 — Granular, differentiated scoring engine
+   Max possible: 100 | Designed to produce REAL spread across sites
+   Score bands: 85-100 Excellent, 65-84 Good, 40-64 Fair, <40 Poor
+   ══════════════════════════════════════════════════════════════════ */
 QSR._calcQuantumScore = function(keyAlg, keySize, tls, ciphers, secScore, daysLeft, hasCAA, hstsMaxAge, crtCount) {
   var score = 0;
-  /* 1. Key algorithm + size (0-25) */
-  if (keyAlg === 'ECDSA') { score += keySize >= 384 ? 25 : 18; }
-  else { score += keySize >= 4096 ? 25 : keySize >= 2048 ? 10 : 0; }
-  /* 2. TLS version (0-20) */
-  score += tls === '1.3' ? 20 : tls === '1.2' ? 10 : tls === '1.1' ? 3 : 0;
-  /* 3. PQC cipher support (0-15) */
-  var hasPQC = ciphers.some(function(c){ return c.quantum; });
-  if (hasPQC) score += 15;
-  /* 4. Forward secrecy (0-10) */
-  var hasFS = ciphers.some(function(c){ return c.forward; });
-  if (hasFS) score += 10;
-  /* 5. GCM/AEAD ciphers (0-5) */
-  var hasGCM = ciphers.some(function(c){ return c.name.includes('GCM') || c.name.includes('CHACHA20'); });
-  if (hasGCM) score += 5;
-  /* 6. Security headers (0-5) */
-  score += Math.min(secScore, 5);
-  /* 7. HSTS with preload-worthy maxAge (0-3) */
-  if (hstsMaxAge && hstsMaxAge >= 31536000) score += 3;
-  else if (hstsMaxAge && hstsMaxAge > 0) score += 1;
-  /* 8. CAA records (0-3) */
+
+  /* ── 1. Key Algorithm + Size (0-22) — biggest differentiator ── */
+  if (keyAlg === 'ECDSA') {
+    score += keySize >= 521 ? 22 : keySize >= 384 ? 19 : keySize >= 256 ? 14 : 8;
+  } else if (keyAlg === 'Ed25519') {
+    score += 20;
+  } else {
+    /* RSA — most sites live here, so gradient matters most */
+    score += keySize >= 8192 ? 22 : keySize >= 4096 ? 16 : keySize >= 3072 ? 10 : keySize >= 2048 ? 6 : 0;
+  }
+
+  /* ── 2. TLS version (0-18) — sharp drop from 1.3 to 1.2 ── */
+  if (tls === '1.3') score += 18;
+  else if (tls === '1.2+' || tls === '1.2') score += 8;
+  else if (tls === '1.1') score += 2;
+  else score += 0; /* TLS 1.0 or unknown */
+
+  /* ── 3. PQC / Post-Quantum cipher support (0-18) ── */
+  var pqcCiphers = ciphers.filter(function(c){ return c.quantum; });
+  if (pqcCiphers.length >= 2) score += 18;
+  else if (pqcCiphers.length === 1) score += 14;
+  else score += 0; /* No PQC = massive gap */
+
+  /* ── 4. Forward Secrecy quality (0-10) ── */
+  var fsCiphers = ciphers.filter(function(c){ return c.forward; });
+  var totalCiphers = ciphers.length || 1;
+  var fsRatio = fsCiphers.length / totalCiphers;
+  if (fsRatio >= 1.0) score += 10;       /* 100% FS ciphers */
+  else if (fsRatio >= 0.75) score += 7;  /* Most are FS */
+  else if (fsRatio >= 0.5) score += 4;   /* Half are FS */
+  else if (fsRatio > 0) score += 2;      /* Some FS */
+  /* else 0 — no forward secrecy at all */
+
+  /* ── 5. AEAD cipher quality (0-7) — ratio-based, not boolean ── */
+  var aeadCiphers = ciphers.filter(function(c){
+    return c.name.includes('GCM') || c.name.includes('CHACHA20') || c.name.includes('CCM');
+  });
+  var aeadRatio = aeadCiphers.length / totalCiphers;
+  if (aeadRatio >= 1.0) score += 7;      /* All AEAD */
+  else if (aeadRatio >= 0.75) score += 5;
+  else if (aeadRatio >= 0.5) score += 3;
+  else if (aeadRatio > 0) score += 1;
+
+  /* ── 6. Security headers completeness (0-8) — gradient ── */
+  /* secScore is 0-5 count of present headers */
+  score += secScore >= 5 ? 8 : secScore >= 4 ? 6 : secScore >= 3 ? 4 : secScore >= 2 ? 2 : secScore >= 1 ? 1 : 0;
+
+  /* ── 7. HSTS quality (0-5) ── */
+  if (hstsMaxAge && hstsMaxAge >= 63072000) score += 5;        /* 2+ years, preload-ready */
+  else if (hstsMaxAge && hstsMaxAge >= 31536000) score += 3;   /* 1 year */
+  else if (hstsMaxAge && hstsMaxAge >= 2592000) score += 1;    /* 30 days */
+  /* else 0 — no HSTS or very short */
+
+  /* ── 8. CAA DNS records (0-3) ── */
   if (hasCAA) score += 3;
-  /* 9. Certificate transparency (0-3) */
-  if (crtCount && crtCount > 0) score += 3;
-  else score -= 2;
-  /* 10. Cipher suite diversity (0-2) */
-  if (ciphers.length >= 3) score += 2;
-  /* 11. No legacy ciphers penalty (-5 to 0) */
-  var hasLegacy = ciphers.some(function(c){ return c.name.includes('RC4') || c.name.includes('DES') || c.name.includes('MD5'); });
-  if (hasLegacy) score -= 5;
-  /* 12. No RSA key exchange penalty (0-3) */
-  var hasRSAKex = ciphers.some(function(c){ return c.name.includes('RSA_WITH'); });
-  if (!hasRSAKex) score += 3;
-  /* 13. Cert health (-10 to +2) */
-  if (daysLeft > 180) score += 2;
+
+  /* ── 9. Certificate transparency depth (0-3) ── */
+  if (crtCount >= 10) score += 3;        /* Well-established domain */
+  else if (crtCount >= 3) score += 2;
+  else if (crtCount >= 1) score += 1;
+  else score -= 3;                        /* No CT logs = suspicious */
+
+  /* ── 10. Legacy cipher penalties (-12 to 0) ── */
+  var legacyCount = ciphers.filter(function(c){
+    return c.name.includes('RC4') || c.name.includes('DES') || c.name.includes('3DES') ||
+           c.name.includes('MD5') || c.name.includes('EXPORT') || c.name.includes('NULL');
+  }).length;
+  score -= Math.min(legacyCount * 4, 12);
+
+  /* ── 11. Static RSA key exchange penalty (-6 to +3) ── */
+  var rsaKexCiphers = ciphers.filter(function(c){ return c.name.includes('RSA_WITH'); });
+  var rsaKexRatio = rsaKexCiphers.length / totalCiphers;
+  if (rsaKexRatio === 0) score += 3;      /* No static RSA KEX — excellent */
+  else if (rsaKexRatio <= 0.25) score += 0;
+  else if (rsaKexRatio <= 0.5) score -= 3;
+  else score -= 6;                        /* Majority static RSA KEX — bad */
+
+  /* ── 12. Certificate health (-15 to +3) — steeper penalties ── */
+  if (daysLeft > 270) score += 3;
+  else if (daysLeft > 180) score += 2;
   else if (daysLeft > 90) score += 1;
-  else if (daysLeft > 30) score += 0;
-  else if (daysLeft > 0) score -= 3;
-  else score -= 10;
-  /* 14. Multiple IPs = load balancing (0-1) */
-  /* handled externally */
+  else if (daysLeft > 30) score -= 2;
+  else if (daysLeft > 7) score -= 5;
+  else if (daysLeft > 0) score -= 10;
+  else score -= 15;                       /* Expired! */
+
+  /* ── 13. Cipher strength — bonus for 256-bit dominant ── */
+  var strong256 = ciphers.filter(function(c){ return c.strength >= 256; });
+  var strongRatio = strong256.length / totalCiphers;
+  if (strongRatio >= 0.75) score += 2;
+  else if (strongRatio < 0.25) score -= 2;
+
   return Math.max(0, Math.min(score, 100));
 };
 
