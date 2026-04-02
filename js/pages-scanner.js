@@ -465,13 +465,78 @@ QSR.runCompare = async function() {
   }
 };
 
+/* ── Source 4: OUR OWN TLS Scanner (Supabase Edge Function) ───── */
+/* Performs a REAL TLS handshake server-side via Deno.connectTls() */
+QSR._fetchTLSProbe = async function(host) {
+  var SCANNER_URL = SUPABASE_URL + '/functions/v1/tls-scanner';
+  try {
+    var r = await fetch(SCANNER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ host: host, port: 443 }),
+      signal: AbortSignal.timeout(15000)
+    });
+    if (!r.ok) throw new Error('Edge fn returned ' + r.status);
+    var d = await r.json();
+    if (d.error && !d.tls_version) throw new Error(d.error);
+    return {
+      ok: true,
+      tls_version: d.tls_version || null,
+      cipher_suite: d.cipher_suite || null,
+      key_algorithm: d.key_algorithm || null,
+      key_size: d.key_size || null,
+      subject: d.subject || null,
+      issuer: d.issuer || null,
+      not_before: d.not_before || null,
+      not_after: d.not_after || null,
+      days_left: d.days_left != null ? d.days_left : null,
+      serial: d.serial || null,
+      san: d.san || [],
+      alpn: d.alpn || null,
+      protocol: d.protocol || null,
+      scan_ms: d.scan_ms || 0,
+      source: 'QSecure TLS Scanner (Edge Function)'
+    };
+  } catch(e) {
+    console.warn('[TLS Scanner]', e.message);
+    /* Fallback: Performance API protocol detection */
+    try {
+      var testUrl = 'https://' + host + '/favicon.ico?_qsr=' + Date.now();
+      var img = new Image();
+      img.src = testUrl;
+      await new Promise(function(resolve) { img.onload = img.onerror = resolve; setTimeout(resolve, 3000); });
+      var entries = performance.getEntriesByName(testUrl);
+      if (entries.length && entries[0].nextHopProtocol) {
+        var protocol = entries[0].nextHopProtocol;
+        return {
+          ok: true,
+          tls_version: protocol === 'h3' ? '1.3' : protocol === 'h2' ? '1.2+' : null,
+          cipher_suite: null, key_algorithm: null, key_size: null,
+          protocol: protocol,
+          source: 'Performance API (fallback)'
+        };
+      }
+    } catch(e2) { /* silent */ }
+    return { ok: false };
+  }
+};
+
 QSR._fetchOneScan = async function(host) {
-  var [dnsData, crtData, headerData] = await Promise.all([
+  var [dnsData, crtData, headerData, tlsProbeData] = await Promise.allSettled([
     QSR._fetchDNS(host),
     QSR._fetchCRT(host),
-    QSR._fetchHeaders(host)
+    QSR._fetchHeaders(host),
+    QSR._fetchTLSProbe(host)
   ]);
-  return QSR._buildScanResult(host, dnsData, crtData, headerData);
+  /* Extract values from settled promises */
+  dnsData = dnsData.status === 'fulfilled' ? dnsData.value : { ok:false, ip:null, ips:[] };
+  crtData = crtData.status === 'fulfilled' ? crtData.value : { certs:[], count:0 };
+  headerData = headerData.status === 'fulfilled' ? headerData.value : { ok:false, headers:{} };
+  tlsProbeData = tlsProbeData.status === 'fulfilled' ? tlsProbeData.value : { ok:false };
+  return QSR._buildScanResult(host, dnsData, crtData, headerData, tlsProbeData);
 };
 
 
@@ -510,7 +575,7 @@ QSR._renderCompare = function(a, b) {
 /* ── Build scan result ───────────────────────────────────────── */
 /* Accepts: host (str), dnsData (from _fetchDNS), crtData (from _fetchCRT),
             headerData (from _fetchHeaders) — NO SSL Labs dependency         */
-QSR._buildScanResult = function(host, dnsData, crtData, headerData) {
+QSR._buildScanResult = function(host, dnsData, crtData, headerData, tlsProbeData) {
 
   /* ── 1. Parse real crt.sh CT log data ───────────────────── */
   var certs    = (crtData && crtData.certs) ? crtData.certs : [];
@@ -522,6 +587,10 @@ QSR._buildScanResult = function(host, dnsData, crtData, headerData) {
   var crtNotBefore = cert0?.not_before  || null;
   var crtNotAfter  = cert0?.not_after   || null;
   var crtSubject   = cert0?.name_value  || null;
+  /* Extract REAL key algorithm from crt.sh cert entry (when available) */
+  var crtKeyType   = cert0?.key_type    || null;   /* e.g. 'RSA', 'ECDSA' */
+  var crtKeySize   = cert0?.key_size    || null;   /* e.g. 2048, 256 */
+  var crtSigAlg    = cert0?.signature_algorithm || null;
 
   var notBeforeMs = crtNotBefore ? new Date(crtNotBefore).getTime() : Date.now() - 90*86400000;
   var notAfterMs  = crtNotAfter  ? new Date(crtNotAfter).getTime()  : Date.now() + 180*86400000;
@@ -540,6 +609,7 @@ QSR._buildScanResult = function(host, dnsData, crtData, headerData) {
   var xframe = hdrs['x-frame-options'];
   var xct    = hdrs['x-content-type-options'];
   var refp   = hdrs['referrer-policy'];
+  var altSvc = hdrs['alt-svc'] || '';
   /* Build security header score (real, per-domain) */
   var secHeaders = [
     { name:'Strict-Transport-Security',  val: hsts,   ok: !!hsts  },
@@ -565,6 +635,55 @@ QSR._buildScanResult = function(host, dnsData, crtData, headerData) {
   var issuerL = issuer.toLowerCase();
   var profile = QSR._inferProfileFromCA(issuerL, host, crtCount, daysLeft, server, hstsMaxAge);
 
+  /* ── 4b. OVERRIDE inferred values with REAL cert data from crt.sh ─ */
+  /* crt.sh often provides real key_type/key_size in issuer string patterns */
+  if (crtKeyType) {
+    if (crtKeyType.toUpperCase().includes('EC') || crtKeyType.toUpperCase().includes('ECDSA')) {
+      profile.keyAlg = 'ECDSA';
+      profile.keySize = crtKeySize || 256;
+    } else if (crtKeyType.toUpperCase().includes('RSA')) {
+      profile.keyAlg = 'RSA';
+      profile.keySize = crtKeySize || 2048;
+    }
+  }
+  /* Parse key info from issuer string (e.g. "C=US, ... CN=R3" → Let's Encrypt = RSA-2048) */
+  /* Also check for ECDSA hints in issuer name */
+  if (!crtKeyType && issuerL) {
+    if (issuerL.includes('ecc') || issuerL.includes('ec ') || issuerL.includes('ecdsa')) {
+      profile.keyAlg = 'ECDSA'; profile.keySize = 256;
+    }
+    if (issuerL.includes('rsa 4096') || issuerL.includes('rsa4096')) {
+      profile.keyAlg = 'RSA'; profile.keySize = 4096;
+    }
+  }
+  if (crtSigAlg) profile.sigAlg = crtSigAlg;
+
+  /* ── 4c. OVERRIDE with real TLS probe data if available ── */
+  if (tlsProbeData && tlsProbeData.ok) {
+    if (tlsProbeData.tls_version) profile.tls = tlsProbeData.tls_version;
+    if (tlsProbeData.cipher_suite) {
+      /* Add the actually negotiated cipher to front of list */
+      var realCipher = {
+        name: tlsProbeData.cipher_suite,
+        strength: tlsProbeData.cipher_suite.includes('256') ? 256 : 128,
+        forward: tlsProbeData.cipher_suite.includes('ECDHE') || tlsProbeData.cipher_suite.includes('DHE'),
+        quantum: tlsProbeData.cipher_suite.includes('KYBER') || tlsProbeData.cipher_suite.includes('ML-KEM')
+      };
+      /* Replace first cipher with real negotiated one */
+      if (!profile.ciphers.some(c => c.name === realCipher.name)) {
+        profile.ciphers.unshift(realCipher);
+      }
+    }
+    if (tlsProbeData.key_algorithm) profile.keyAlg = tlsProbeData.key_algorithm;
+    if (tlsProbeData.key_size) profile.keySize = tlsProbeData.key_size;
+  }
+
+  /* ── 4d. Alt-Svc h3 = HTTP/3 = QUIC = guaranteed TLS 1.3 ─ */
+  if (altSvc.includes('h3')) {
+    profile.tls = '1.3';
+    if (profile.grade === 'B') profile.grade = 'A';
+  }
+
   var tlsVersion = profile.tls;
   var keyAlg     = profile.keyAlg;
   var keySize    = profile.keySize;
@@ -587,6 +706,8 @@ QSR._buildScanResult = function(host, dnsData, crtData, headerData) {
   if (dnsData.txt  && dnsData.txt.length)  sources.push('TXT/DMARC');
   if (crtCount > 0)                sources.push('crt.sh CT logs (' + crtCount + ' certs)');
   if (headerData && headerData.ok) sources.push('live HTTP headers');
+  if (tlsProbeData && tlsProbeData.ok) sources.push('TLS probe (real cipher)');
+  if (crtKeyType) sources.push('cert key: ' + crtKeyType + (crtKeySize ? '-' + crtKeySize : ''));
 
   return {
     host, grade, tlsVersion, keyAlg, keySize, sigAlg, subject, issuer,
