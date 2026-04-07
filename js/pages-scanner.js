@@ -768,54 +768,6 @@ QSR._fetchHeaders = async function (host) {
   /* CORS proxies are unreliable. Headers now come from Edge Function only. */
   return { ok: false, headers: {} };
 };
-      var status = r.status || 200;
-      var ct = r.headers.get('content-type') || '';
-
-      if (ct.indexOf('application/json') !== -1 || rawText.trim().charAt(0) === '{') {
-        try { parsed = JSON.parse(rawText); } catch (e) { }
-      }
-
-      if (parsed) {
-        status = (parsed.status && parsed.status.http_code) || parsed.status_code || status;
-        ct = (parsed.status && parsed.status.content_type) || parsed.content_type || ct;
-        body = parsed.contents || parsed.body || parsed.html || '';
-        var rawHeaders = parsed.headers || parsed.head || '';
-        if (typeof rawHeaders === 'object' && rawHeaders) {
-          Object.keys(rawHeaders).forEach(function (k) {
-            hdrs[String(k).toLowerCase()] = rawHeaders[k];
-          });
-        } else if (typeof rawHeaders === 'string') {
-          rawHeaders.split('\n').forEach(function (line) {
-            var m = line.match(/^([^:]+):\s*(.+)$/);
-            if (m) hdrs[m[1].toLowerCase().trim()] = m[2].trim();
-          });
-        }
-      } else {
-        body = rawText || '';
-      }
-
-      if (ct) hdrs['content-type'] = ct;
-
-      var titleMatch = body.match(/<title[^>]*>([^<]+)<\/title>/i);
-      var title = titleMatch ? titleMatch[1].trim() : '';
-      var res = {
-        ok: true,
-        status: status,
-        headers: hdrs,
-        body: body,
-        title: title,
-        proxy: proxy.split('?')[0],
-        techFingerprint: QSR._parseWhatWebStyleFingerprint(host, hdrs, body, title)
-      };
-      window._qsrCache[cacheKey] = res;
-      return res;
-    } catch (e) {
-      console.warn('[HEADERS proxy]', e.message);
-    }
-  }
-  if (window._qsrCache[cacheKey]) return window._qsrCache[cacheKey];
-  return { ok: false, status: null, headers: {}, body: '', title: '', proxy: null, techFingerprint: null };
-};
 
 QSR._parseWhatWebStyleFingerprint = function (host, headers, body, title) {
   headers = headers || {};
