@@ -889,22 +889,6 @@ QSR._fetchTLSProbe = async function (host) {
   if (window._qsrCache[cacheKey]) return window._qsrCache[cacheKey];
   return { ok: false, headers: {} };
 };
-      if (entries.length && entries[0].nextHopProtocol) {
-        var protocol = entries[0].nextHopProtocol;
-        var fbRes = {
-          ok: true,
-          tls_version: protocol === 'h3' ? '1.3' : protocol === 'h2' ? '1.2+' : null,
-          cipher_suite: null, key_algorithm: null, key_size: null,
-          protocol: protocol,
-          source: 'Performance API (fallback)'
-        };
-        window._qsrCache[cacheKey] = fbRes;
-        return fbRes;
-      }
-    } catch (e2) { /* silent */ }
-    return { ok: false };
-  }
-};
 
 QSR._fetchOneScan = async function (host) {
   var [dnsData, crtData, headerData, tlsProbeData] = await Promise.allSettled([
