@@ -7,9 +7,10 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, apikey',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Max-Age': '86400',
+  'Content-Type': 'application/json',
 };
 
 interface TLSScanResult {
@@ -137,7 +138,6 @@ async function scanTLS(host: string, port = 443): Promise<TLSScanResult> {
   result.scan_ms = Date.now() - start;
   return result;
 }
-            result.key_algorithm = 'RSA';
 
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight requests
