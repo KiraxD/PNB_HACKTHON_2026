@@ -28,6 +28,23 @@ BEGIN
 END;
 $$;
 
+CREATE SCHEMA IF NOT EXISTS private;
+
+CREATE OR REPLACE FUNCTION private.is_admin_user(check_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  SELECT COALESCE(
+    (SELECT raw_app_meta_data->>'role' FROM auth.users WHERE id = check_user_id) = 'admin',
+    false
+  );
+$$;
+
+GRANT USAGE ON SCHEMA private TO authenticated;
+GRANT EXECUTE ON FUNCTION private.is_admin_user(UUID) TO authenticated;
+
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
@@ -216,54 +233,42 @@ CREATE POLICY "profiles_select_own" ON public.profiles
   FOR SELECT USING (auth.uid() = id);
 
 CREATE POLICY "profiles_select_admin" ON public.profiles
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1
-      FROM public.profiles p
-      WHERE p.id = auth.uid() AND p.role = 'admin'
-    )
-  );
+  FOR SELECT USING (private.is_admin_user(auth.uid()));
 
 CREATE POLICY "profiles_update_admin" ON public.profiles
-  FOR UPDATE USING (
-    EXISTS (
-      SELECT 1
-      FROM public.profiles p
-      WHERE p.id = auth.uid() AND p.role = 'admin'
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1
-      FROM public.profiles p
-      WHERE p.id = auth.uid() AND p.role = 'admin'
-    )
-  );
+  FOR UPDATE USING (private.is_admin_user(auth.uid()))
+  WITH CHECK (private.is_admin_user(auth.uid()));
 
 -- All core data tables: any authenticated user can read (FR3 — least privilege)
 CREATE POLICY "assets_select_auth"    ON public.assets    FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "assets_insert_auth"    ON public.assets    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "assets_update_auth"    ON public.assets    FOR UPDATE USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "assets_delete_admin"   ON public.assets    FOR DELETE USING (private.is_admin_user(auth.uid()));
 CREATE POLICY "domains_select_auth"   ON public.domains   FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "domains_delete_admin"  ON public.domains   FOR DELETE USING (private.is_admin_user(auth.uid()));
 CREATE POLICY "ssl_select_auth"       ON public.ssl_certs FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "ip_select_auth"        ON public.ip_subnets FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "software_select_auth"  ON public.software  FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "crypto_select_auth"    ON public.crypto_overview FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "crypto_delete_admin"   ON public.crypto_overview FOR DELETE USING (private.is_admin_user(auth.uid()));
 CREATE POLICY "crypto_insert_auth"    ON public.crypto_overview FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "crypto_update_auth"    ON public.crypto_overview FOR UPDATE USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "ns_select_auth"        ON public.nameservers FOR SELECT USING (auth.role() = 'authenticated');
-CREATE POLICY "cbom_select_auth"      ON public.cbom      FOR SELECT USING (auth.role() = 'authenticated');
-CREATE POLICY "cbom_insert_auth"      ON public.cbom      FOR INSERT WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY "cbom_update_auth"      ON public.cbom      FOR UPDATE USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "cbom_delete_admin"     ON public.cbom      FOR DELETE USING (private.is_admin_user(auth.uid()));
+CREATE POLICY "pqc_select_auth"       ON public.pqc_scores FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "pqc_insert_auth"       ON public.pqc_scores FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "pqc_update_auth"       ON public.pqc_scores FOR UPDATE USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "pqc_delete_admin"      ON public.pqc_scores FOR DELETE USING (private.is_admin_user(auth.uid());
 CREATE POLICY "pqc_select_auth"       ON public.pqc_scores FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "pqc_insert_auth"       ON public.pqc_scores FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "pqc_update_auth"       ON public.pqc_scores FOR UPDATE USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "cyberrating_select"    ON public.cyber_rating FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "cyberrating_insert_auth" ON public.cyber_rating FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
--- Audit log: any auth user can select; any auth user can insert own actions
+-- Audit log: any auth user can select; any auth user can insert own actions; CANNOT DELETE (immutable)
 CREATE POLICY "audit_select_auth"  ON public.audit_log FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "audit_insert_auth"  ON public.audit_log FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "audit_delete_denied" ON public.audit_log FOR DELETE USING (false);
 
 -- Reports: users see only own reports
 CREATE POLICY "reports_own" ON public.reports FOR ALL USING (auth.uid() = created_by);
@@ -290,6 +295,25 @@ CREATE INDEX IF NOT EXISTS idx_pqc_scores_asset_id
 
 CREATE INDEX IF NOT EXISTS idx_assets_last_scan
   ON public.assets (last_scan DESC);
+
+-- Additional performance indexes
+CREATE INDEX IF NOT EXISTS idx_profiles_role
+  ON public.profiles (role) WHERE status = 'active';
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_user_action
+  ON public.audit_log (user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_action_time
+  ON public.audit_log (action, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_assets_name_search
+  ON public.assets USING GIN(to_tsvector('english', name));
+
+CREATE INDEX IF NOT EXISTS idx_crypto_overview_asset_scanned
+  ON public.crypto_overview (asset_id, scanned_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_reports_created_by_date
+  ON public.reports (created_by, created_at DESC);
 
 -- ═══════════════════════════════════════════════════════════════
 -- HELPER: Admin bypass (service role bypasses RLS automatically)

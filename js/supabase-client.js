@@ -1,8 +1,16 @@
 /* supabase-client.js - QSecure Radar Live Backend
-   Project: shinmrlkbaggbwpzhlcl | PSB Hackathon 2026 */
+   Project: shinmrlkbaggbwpzhlcl | PSB Hackathon 2026
+   SECURITY: Load credentials from environment - NEVER hardcode keys! */
 
-const SUPABASE_URL = 'https://shinmrlkbaggbwpzhlcl.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNoaW5tcmxrYmFnZ2J3cHpobGNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxMjQ5OTksImV4cCI6MjA4OTcwMDk5OX0.xYRrKNOdUD3g-APqEGSx9yG6qg6YpCeziIGY-gqPYhA';
+// Load from environment variables (set in .env, loaded via build process)
+const SUPABASE_URL = window.__QSECURE_CONFIG__?.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = window.__QSECURE_CONFIG__?.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+
+// Fallback validation
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.error('[QSR-CRITICAL] Supabase credentials not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
+}
+
 const QSR_PROFILE_COLUMNS = 'id,email,full_name,role,status,created_at';
 
 window.QSR_SUPABASE_READY = false;

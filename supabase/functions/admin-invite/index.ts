@@ -9,6 +9,9 @@ const CORS_HEADERS = {
 
 const ALLOWED_ROLES = new Set(["soc", "admin", "compliance"]);
 
+// Rate limiting: max 10 invites per admin per hour
+const RATE_LIMIT_MAP = new Map<string, { count: number; resetTime: number }>();
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -17,6 +20,23 @@ function json(body: unknown, status = 200) {
       "Content-Type": "application/json",
     },
   });
+}
+
+function checkRateLimit(userId: string): { allowed: boolean; remainingRequests: number } {
+  const now = Date.now();
+  const userLimit = RATE_LIMIT_MAP.get(userId);
+
+  if (!userLimit || now > userLimit.resetTime) {
+    RATE_LIMIT_MAP.set(userId, { count: 1, resetTime: now + 3600000 }); // 1 hour
+    return { allowed: true, remainingRequests: 9 };
+  }
+
+  if (userLimit.count >= 10) {
+    return { allowed: false, remainingRequests: 0 };
+  }
+
+  userLimit.count++;
+  return { allowed: true, remainingRequests: 10 - userLimit.count };
 }
 
 Deno.serve(async (req: Request) => {
@@ -42,6 +62,11 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Missing Authorization header." }, 401);
     }
 
+    // Validate token format
+    if (!authHeader.startsWith("Bearer ")) {
+      return json({ error: "Invalid Authorization header format." }, 401);
+    }
+
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
       auth: { persistSession: false, autoRefreshToken: false },
@@ -51,15 +76,17 @@ Deno.serve(async (req: Request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
+    // Get user from token - validates token server-side
     const {
       data: { user },
       error: userError,
     } = await userClient.auth.getUser();
 
     if (userError || !user) {
-      return json({ error: "Unable to resolve the current user." }, 401);
+      return json({ error: "Unable to resolve the current user. Token may be invalid or expired." }, 401);
     }
 
+    // CRITICAL: Query DB for admin status - NEVER trust client claims
     const { data: callerProfile, error: profileError } = await adminClient
       .from("profiles")
       .select("role,status")
@@ -72,6 +99,18 @@ Deno.serve(async (req: Request) => {
 
     if (!callerProfile || callerProfile.role !== "admin" || callerProfile.status !== "active") {
       return json({ error: "Only active admin users can send invites." }, 403);
+    }
+
+    // Apply rate limiting
+    const rateLimit = checkRateLimit(user.id);
+    if (!rateLimit.allowed) {
+      return json(
+        { 
+          error: "Rate limit exceeded. Maximum 10 invites per hour per admin.",
+          retryAfter: 3600,
+        },
+        429
+      );
     }
 
     const payload = await req.json();
@@ -114,16 +153,21 @@ Deno.serve(async (req: Request) => {
       user_id: user.id,
       action: "USER_INVITED",
       target: email,
-      icon: "USER",
+      icon: "👤",
     });
 
-    return json({
-      success: true,
-      invited_email: email,
-      requested_role: requestedRole,
-    });
+    return json(
+      {
+        success: true,
+        invited_email: email,
+        requested_role: requestedRole,
+        remainingInvites: rateLimit.remainingRequests,
+      },
+      201
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected error";
+    console.error("[admin-invite] Error:", message);
     return json({ error: message }, 500);
   }
 });
