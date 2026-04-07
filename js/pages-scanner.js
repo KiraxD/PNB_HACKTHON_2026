@@ -901,18 +901,28 @@ QSR._fetchTLSProbe = async function (host) {
 };
 
 QSR._fetchOneScan = async function (host) {
-  var [dnsData, crtData, headerData, tlsProbeData] = await Promise.allSettled([
+  var [dnsData, crtData, headerData, tlsProbeData, dnsSec, threatIntel] = await Promise.allSettled([
     QSR._fetchDNS(host),
     QSR._fetchCRT(host),
     QSR._fetchHeaders(host),
-    QSR._fetchTLSProbe(host)
+    QSR._fetchTLSProbe(host),
+    fetch('/api/dns-security?host=' + encodeURIComponent(host)).then(r => r.ok ? r.json() : null),
+    fetch('/api/threat-intelligence?host=' + encodeURIComponent(host)).then(r => r.ok ? r.json() : null)
   ]);
   /* Extract values from settled promises */
   dnsData = dnsData.status === 'fulfilled' ? dnsData.value : { ok: false, ip: null, ips: [] };
   crtData = crtData.status === 'fulfilled' ? crtData.value : { certs: [], count: 0 };
   headerData = headerData.status === 'fulfilled' ? headerData.value : { ok: false, headers: {} };
   tlsProbeData = tlsProbeData.status === 'fulfilled' ? tlsProbeData.value : { ok: false };
-  return QSR._buildScanResult(host, dnsData, crtData, headerData, tlsProbeData);
+  dnsSec = dnsSec.status === 'fulfilled' ? dnsSec.value : null;
+  threatIntel = threatIntel.status === 'fulfilled' ? threatIntel.value : null;
+  
+  // Merge DNS security and threat intel into result
+  var result = QSR._buildScanResult(host, dnsData, crtData, headerData, tlsProbeData);
+  if (dnsSec) result.dnsSecurity = dnsSec;
+  if (threatIntel) result.threatIntel = threatIntel;
+  
+  return result;
 };
 
 
