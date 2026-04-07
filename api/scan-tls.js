@@ -1,6 +1,5 @@
-// Comprehensive TLS/Certificate/Headers scanner via multiple data sources
+// Pure Internal TLS Scanner - No External APIs
 import https from 'https';
-import tls from 'tls';
 
 export default async function handler(req, res) {
   const { host } = req.query;
@@ -9,31 +8,25 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing host parameter' });
   }
 
-  // Validate host format (prevent SSRF)
   if (!/^[a-zA-Z0-9.-]+\.?[a-zA-Z0-9-]*$/.test(host)) {
     return res.status(400).json({ error: 'Invalid host format' });
   }
 
   try {
-    // Parallel requests for certificate, headers, and SSL Labs grade
-    const [certData, headersData, sslLabsData] = await Promise.allSettled([
-      fetchCertificate(host),
-      fetchHeadersAndCiphers(host),
-      fetchSSLLabsGrade(host)
-    ]);
+    // Perform TLS connection and analyze certificate + ciphers
+    const tlsData = await performTLSHandshake(host);
 
-    const result = {
+    res.status(200).json({
       ok: true,
       host: host,
-      certificate: certData.status === 'fulfilled' ? certData.value : null,
-      headers: headersData.status === 'fulfilled' ? headersData.value.headers : {},
-      ciphers: headersData.status === 'fulfilled' ? headersData.value.ciphers : [],
-      tlsVersion: headersData.status === 'fulfilled' ? headersData.value.tlsVersion : null,
-      sslLabsGrade: sslLabsData.status === 'fulfilled' ? sslLabsData.value : null,
-      timestamp: new Date().toISOString()
-    };
-
-    res.status(200).json(result);
+      certificate: tlsData.certificate,
+      tlsVersion: tlsData.tlsVersion,
+      cipher: tlsData.cipher,
+      cipherAnalysis: analyzeCipherSuite(tlsData.cipher),
+      headers: tlsData.headers,
+      timestamp: new Date().toISOString(),
+      source: 'Internal TLS Scanner v2.0 (No External APIs)'
+    });
   } catch (error) {
     res.status(500).json({
       ok: false,
@@ -43,67 +36,24 @@ export default async function handler(req, res) {
   }
 }
 
-// Fetch actual TLS certificate by establishing connection
-function fetchCertificate(host) {
+async function performTLSHandshake(host) {
   return new Promise((resolve, reject) => {
     const options = {
       hostname: host,
       port: 443,
-      method: 'GET',
-      rejectUnauthorized: false, // Allow self-signed certs for analysis
-      timeout: 10000
-    };
-
-    const req = https.request(options, (res) => {
-      if (res.socket && res.socket.getPeerCertificate) {
-        const cert = res.socket.getPeerCertificate();
-        resolve({
-          subject: cert.subject || {},
-          issuer: cert.issuer || {},
-          valid_from: cert.valid_from,
-          valid_to: cert.valid_to,
-          fingerprint: cert.fingerprint,
-          serialNumber: cert.serialNumber,
-          modulus: cert.modulus ? cert.modulus.substring(0, 50) + '...' : null,
-          bits: cert.bits,
-          publicKey: cert.publicKey ? cert.publicKey.substring(0, 50) + '...' : null,
-          issuerCert: cert.issuerCert ? {
-            subject: cert.issuerCert.subject,
-            issuer: cert.issuerCert.issuer
-          } : null
-        });
-      }
-      res.destroy();
-    });
-
-    req.on('error', (err) => {
-      reject(err);
-    });
-
-    req.setTimeout(10000, () => {
-      req.destroy();
-      reject(new Error('Certificate fetch timeout'));
-    });
-
-    req.end();
-  });
-}
-
-// Fetch headers and TLS version info
-function fetchHeadersAndCiphers(host) {
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: host,
-      port: 443,
-      method: 'GET',
       rejectUnauthorized: false,
       timeout: 10000,
       headers: {
-        'User-Agent': 'QSecure-Radar/2.0 (Security Scanner)'
+        'User-Agent': 'QSecure-Radar/2.0'
       }
     };
 
     const req = https.request(options, (res) => {
+      const cert = res.socket.getPeerCertificate();
+      const tlsVersion = res.socket.getProtocol();
+      const cipher = res.socket.getCipher();
+
+      // Extract security headers
       const headers = {};
       const securityHeaders = [
         'strict-transport-security',
@@ -112,9 +62,7 @@ function fetchHeadersAndCiphers(host) {
         'x-content-type-options',
         'referrer-policy',
         'x-xss-protection',
-        'permissions-policy',
-        'server',
-        'x-powered-by'
+        'permissions-policy'
       ];
 
       securityHeaders.forEach(header => {
@@ -123,71 +71,271 @@ function fetchHeadersAndCiphers(host) {
         }
       });
 
-      // Extract TLS info from socket
-      const tlsVersion = res.socket.getProtocol ? res.socket.getProtocol() : null;
-      const cipher = res.socket.getCipher ? res.socket.getCipher() : null;
-
       resolve({
-        headers: headers,
-        tlsVersion: tlsVersion,
+        certificate: {
+          subject: cert.subject || {},
+          issuer: cert.issuer || {},
+          valid_from: new Date(cert.valid_from),
+          valid_to: new Date(cert.valid_to),
+          fingerprint: cert.fingerprint,
+          serialNumber: cert.serialNumber,
+          bits: cert.bits || 2048,
+          modulus: cert.modulus ? cert.modulus.substring(0, 50) + '...' : null
+        },
+        tlsVersion: tlsVersion || 'unknown',
         cipher: cipher ? {
           name: cipher.name,
           version: cipher.version,
-          standardName: cipher.standardName,
           bits: cipher.bits
         } : null,
-        ciphers: [] // Will be populated if we re-connect for cipher enumeration
+        headers: headers
       });
 
       res.destroy();
     });
 
-    req.on('error', (err) => {
-      reject(err);
-    });
-
+    req.on('error', reject);
     req.setTimeout(10000, () => {
       req.destroy();
-      reject(new Error('Headers/Ciphers fetch timeout'));
+      reject(new Error('TLS handshake timeout'));
     });
 
     req.end();
   });
 }
 
-// Fetch SSL Labs grade (optional, rate-limited)
-function fetchSSLLabsGrade(host) {
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'api.ssllabs.com',
-      port: 443,
-      path: `/api/v3/analyze?host=${encodeURIComponent(host)}&publish=off&all=done`,
-      method: 'GET',
-      timeout: 30000
-    };
+// INTERNAL Cipher Suite Database (Internal Analysis - No SSL Labs)
+const CIPHER_DATABASE = {
+  // TLS 1.3 ciphers (AEAD based, all with PFS)
+  'TLS_AES_256_GCM_SHA384': {
+    version: '1.3',
+    strength: 256,
+    type: 'AEAD',
+    keyExchange: 'ECDHE',
+    encryption: 'AES-256-GCM',
+    forwardSecrecy: true,
+    rating: 'excellent',
+    quantum_vulnerable: true,
+    deprecated: false
+  },
+  'TLS_AES_128_GCM_SHA256': {
+    version: '1.3',
+    strength: 128,
+    type: 'AEAD',
+    keyExchange: 'ECDHE',
+    encryption: 'AES-128-GCM',
+    forwardSecrecy: true,
+    rating: 'good',
+    quantum_vulnerable: true,
+    deprecated: false
+  },
+  'TLS_CHACHA20_POLY1305_SHA256': {
+    version: '1.3',
+    strength: 256,
+    type: 'AEAD',
+    keyExchange: 'ECDHE',
+    encryption: 'ChaCha20-Poly1305',
+    forwardSecrecy: true,
+    rating: 'excellent',
+    quantum_vulnerable: true,
+    deprecated: false
+  },
+  // TLS 1.2 with ECDHE
+  'TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384': {
+    version: '1.2',
+    strength: 256,
+    type: 'AEAD',
+    keyExchange: 'ECDHE',
+    encryption: 'AES-256-GCM',
+    forwardSecrecy: true,
+    rating: 'good',
+    quantum_vulnerable: true,
+    deprecated: false
+  },
+  'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384': {
+    version: '1.2',
+    strength: 256,
+    type: 'AEAD',
+    keyExchange: 'ECDHE',
+    encryption: 'AES-256-GCM',
+    forwardSecrecy: true,
+    rating: 'good',
+    quantum_vulnerable: true,
+    deprecated: false
+  },
+  'TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256': {
+    version: '1.2',
+    strength: 128,
+    type: 'AEAD',
+    keyExchange: 'ECDHE',
+    encryption: 'AES-128-GCM',
+    forwardSecrecy: true,
+    rating: 'good',
+    quantum_vulnerable: true,
+    deprecated: false
+  },
+  'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256': {
+    version: '1.2',
+    strength: 128,
+    type: 'AEAD',
+    keyExchange: 'ECDHE',
+    encryption: 'AES-128-GCM',
+    forwardSecrecy: true,
+    rating: 'good',
+    quantum_vulnerable: true,
+    deprecated: false
+  },
+  // TLS 1.2 with DHE
+  'TLS_DHE_RSA_WITH_AES_256_GCM_SHA384': {
+    version: '1.2',
+    strength: 256,
+    type: 'AEAD',
+    keyExchange: 'DHE',
+    encryption: 'AES-256-GCM',
+    forwardSecrecy: true,
+    rating: 'good',
+    quantum_vulnerable: true,
+    deprecated: false
+  },
+  // TLS 1.2 with RSA (no PFS - weak)
+  'TLS_RSA_WITH_AES_256_GCM_SHA384': {
+    version: '1.2',
+    strength: 256,
+    type: 'AEAD',
+    keyExchange: 'RSA',
+    encryption: 'AES-256-GCM',
+    forwardSecrecy: false,
+    rating: 'weak',
+    quantum_vulnerable: true,
+    deprecated: false,
+    note: 'No forward secrecy - critically weak'
+  },
+  'TLS_RSA_WITH_AES_128_GCM_SHA256': {
+    version: '1.2',
+    strength: 128,
+    type: 'AEAD',
+    keyExchange: 'RSA',
+    encryption: 'AES-128-GCM',
+    forwardSecrecy: false,
+    rating: 'weak',
+    quantum_vulnerable: true,
+    deprecated: false,
+    note: 'No forward secrecy - critically weak'
+  },
+  // TLS 1.2 CBC-based
+  'TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA': {
+    version: '1.2',
+    strength: 256,
+    type: 'CBC',
+    keyExchange: 'ECDHE',
+    encryption: 'AES-256-CBC',
+    forwardSecrecy: true,
+    rating: 'medium',
+    quantum_vulnerable: true,
+    deprecated: false,
+    note: 'SHA1 MAC deprecated'
+  },
+  'TLS_RSA_WITH_AES_256_CBC_SHA': {
+    version: '1.2',
+    strength: 256,
+    type: 'CBC',
+    keyExchange: 'RSA',
+    encryption: 'AES-256-CBC',
+    forwardSecrecy: false,
+    rating: 'weak',
+    quantum_vulnerable: true,
+    deprecated: false,
+    note: 'No PFS, SHA1 deprecated'
+  },
+  // Legacy
+  'TLS_RSA_WITH_3DES_EDE_CBC_SHA': {
+    version: '1.2',
+    strength: 112,
+    type: 'CBC',
+    keyExchange: 'RSA',
+    encryption: '3DES',
+    forwardSecrecy: false,
+    rating: 'critical',
+    quantum_vulnerable: true,
+    deprecated: true,
+    note: '3DES and SHA1 both deprecated'
+  },
+  // ChaCha20
+  'TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256': {
+    version: '1.2',
+    strength: 256,
+    type: 'AEAD',
+    keyExchange: 'ECDHE',
+    encryption: 'ChaCha20-Poly1305',
+    forwardSecrecy: true,
+    rating: 'excellent',
+    quantum_vulnerable: true,
+    deprecated: false
+  }
+};
 
-    https.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => { data += chunk; });
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(data);
-          resolve({
-            grade: parsed.grade,
-            score: parsed.score,
-            endpoints: parsed.endpoints ? parsed.endpoints.map(e => ({
-              ipAddress: e.ipAddress,
-              grade: e.grade,
-              serverName: e.serverName
-            })) : []
-          });
-        } catch (e) {
-          reject(e);
-        }
-      });
-    }).on('error', reject).setTimeout(30000, function() {
-      this.destroy();
-      reject(new Error('SSL Labs timeout'));
-    }).end();
-  });
+function analyzeCipherSuite(cipher) {
+  if (!cipher || !cipher.name) {
+    return {
+      name: 'unknown',
+      analysis: 'Unable to determine cipher suite',
+      rating: 'unknown',
+      recommendations: ['Unable to analyze']
+    };
+  }
+
+  const cipherName = cipher.name;
+  const dbEntry = CIPHER_DATABASE[cipherName];
+
+  if (dbEntry) {
+    return {
+      name: cipherName,
+      ...dbEntry,
+      recommendations: generateCipherRecommendations(dbEntry)
+    };
+  }
+
+  // Fallback analysis for unknown ciphers
+  return {
+    name: cipherName,
+    analysis: 'Cipher not in database',
+    rating: 'unknown',
+    recommendations: ['Verify cipher security with documentation']
+  };
+}
+
+function generateCipherRecommendations(cipher) {
+  const recommendations = [];
+
+  if (cipher.deprecated) {
+    recommendations.push('🚨 CRITICAL: Disable this deprecated cipher immediately');
+  }
+
+  if (!cipher.forwardSecrecy) {
+    recommendations.push('⚠️ HIGH: No Perfect Forward Secrecy - upgrade to ECDHE/DHE');
+  }
+
+  if (cipher.quantum_vulnerable) {
+    recommendations.push('⚠️ Medium: Vulnerable to quantum attacks - plan PQC migration');
+  }
+
+  if (cipher.strength < 128) {
+    recommendations.push('🚨 CRITICAL: Key strength < 128 bits - replace with stronger cipher');
+  } else if (cipher.strength < 256) {
+    recommendations.push('⚠️ Medium: Consider upgrading to 256-bit cipher');
+  } else {
+    recommendations.push('✓ Good: Key strength is 256 bits');
+  }
+
+  if (cipher.rating === 'excellent') {
+    recommendations.push('✓ Excellent: This is a recommended modern cipher suite');
+  } else if (cipher.rating === 'critical') {
+    recommendations.push('🚨 CRITICAL: Remove this cipher suite immediately');
+  }
+
+  if (cipher.note) {
+    recommendations.push(`Note: ${cipher.note}`);
+  }
+
+  return recommendations;
 }

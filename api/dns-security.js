@@ -1,4 +1,12 @@
-// DNS Security Intelligence - DNSSEC, SPF, DMARC, CAA records
+// Internal DNS Security Analysis - Pure Node.js DNS (No External APIs)
+import dns from 'dns';
+import { promisify } from 'util';
+
+const resolveTxt = promisify(dns.resolveTxt);
+const resolveMx = promisify(dns.resolveMx);
+const resolveNs = promisify(dns.resolveNs);
+const resolveCaa = promisify(dns.resolveCaa);
+
 export default async function handler(req, res) {
   const { host } = req.query;
 
@@ -39,101 +47,97 @@ export default async function handler(req, res) {
 
 async function fetchDNSRecords(host) {
   const result = {
-    dnssec: null,
-    spf: null,
-    dmarc: null,
-    dkim: null,
-    caa: [],
-    mx: [],
-    ns: [],
-    txt: []
+    a_records: [],
+    caa_records: [],
+    txt_records: [],
+    spf_record: null,
+    dmarc_policy: null,
+    dkim_selectors: [],
+    email_security: {},
+    mx_records: [],
+    ns_records: []
   };
 
   try {
-    // Cloudflare DoH API
-    const dohUrl = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}&type=`;
-    
-    // Fetch TXT records (SPF, DMARC, DKIM)
-    const txtResponse = await fetch(dohUrl + 'TXT', {
-      headers: { 'accept': 'application/dns-json' },
-      signal: AbortSignal.timeout(5000)
-    });
-    
-    if (txtResponse.ok) {
-      const txtData = await txtResponse.json();
-      if (txtData.Answer) {
-        result.txt = txtData.Answer.filter(a => a.type === 16).map(a => a.data).join(' ');
-        
-        // Parse SPF
-        if (result.txt.includes('v=spf1')) {
-          result.spf = result.txt;
-        }
-        
-        // Parse DMARC
-        if (result.txt.includes('v=DMARC1')) {
-          result.dmarc = result.txt;
-        }
-      }
-    }
-    
-    // Fetch DMARC policy (at _dmarc subdomain)
-    const dmarcUrl = `https://cloudflare-dns.com/dns-query?name=_dmarc.${encodeURIComponent(host)}&type=TXT`;
-    const dmarcResponse = await fetch(dmarcUrl, {
-      headers: { 'accept': 'application/dns-json' },
-      signal: AbortSignal.timeout(5000)
-    });
-    
-    if (dmarcResponse.ok) {
-      const dmarcData = await dmarcResponse.json();
-      if (dmarcData.Answer) {
-        result.dmarc = dmarcData.Answer.map(a => a.data).join(' ');
-      }
-    }
-    
-    // Fetch CAA records
-    const caaUrl = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}&type=CAA`;
-    const caaResponse = await fetch(caaUrl, {
-      headers: { 'accept': 'application/dns-json' },
-      signal: AbortSignal.timeout(5000)
-    });
-    
-    if (caaResponse.ok) {
-      const caaData = await caaResponse.json();
-      if (caaData.Answer) {
-        result.caa = caaData.Answer.filter(a => a.type === 257).map(a => a.data);
-      }
-    }
-    
     // Fetch MX records
-    const mxUrl = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}&type=MX`;
-    const mxResponse = await fetch(mxUrl, {
-      headers: { 'accept': 'application/dns-json' },
-      signal: AbortSignal.timeout(5000)
-    });
-    
-    if (mxResponse.ok) {
-      const mxData = await mxResponse.json();
-      if (mxData.Answer) {
-        result.mx = mxData.Answer.filter(a => a.type === 15).map(a => a.data);
-      }
+    try {
+      result.mx_records = await resolveMx(host);
+    } catch (e) {
+      // Not found
     }
-    
+
     // Fetch NS records
-    const nsUrl = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}&type=NS`;
-    const nsResponse = await fetch(nsUrl, {
-      headers: { 'accept': 'application/dns-json' },
-      signal: AbortSignal.timeout(5000)
-    });
-    
-    if (nsResponse.ok) {
-      const nsData = await nsResponse.json();
-      if (nsData.Answer) {
-        result.ns = nsData.Answer.filter(a => a.type === 2).map(a => a.data);
+    try {
+      result.ns_records = await resolveNs(host);
+    } catch (e) {
+      // Not found
+    }
+
+    // Fetch CAA records
+    try {
+      result.caa_records = await resolveCaa(host);
+    } catch (e) {
+      // Not found
+    }
+
+    // Fetch TXT records (SPF, DMARC, etc.)
+    try {
+      const txtRecords = await resolveTxt(host);
+      result.txt_records = txtRecords.map(r => r.join(''));
+
+      // Parse SPF
+      const spf = result.txt_records.find(r => r.startsWith('v=spf1'));
+      if (spf) {
+        result.spf_record = spf;
+        result.email_security.spf_present = true;
+        result.email_security.spf_policy = analyzeSPFPolicy(spf);
+      }
+
+      // Parse DMARC
+      const dmarc = result.txt_records.find(r => r.startsWith('v=DMARC1'));
+      if (dmarc) {
+        result.dmarc_policy = dmarc;
+        result.email_security.dmarc_present = true;
+        result.email_security.dmarc_policy = analyzeDMARCPolicy(dmarc);
+      }
+    } catch (e) {
+      // Not found
+    }
+
+    // Check DMARC at _dmarc subdomain
+    try {
+      const dmarcTxt = await resolveTxt(`_dmarc.${host}`);
+      const dmarcRecord = dmarcTxt.map(r => r.join('')).find(r => r.startsWith('v=DMARC1'));
+      if (dmarcRecord) {
+        result.dmarc_policy = dmarcRecord;
+        result.email_security.dmarc_present = true;
+        result.email_security.dmarc_policy = analyzeDMARCPolicy(dmarcRecord);
+      }
+    } catch (e) {
+      // Not found
+    }
+
+    // Check common DKIM selectors
+    const commonSelectors = ['default', 'selector1', 'selector2', 'google', 'sendgrid', 'mandrill'];
+    for (const selector of commonSelectors) {
+      try {
+        const dkimTxt = await resolveTxt(`${selector}._domainkey.${host}`);
+        if (dkimTxt.length > 0) {
+          result.dkim_selectors.push({
+            selector: selector,
+            record: dkimTxt.map(r => r.join(''))
+          });
+        }
+      } catch (e) {
+        // Not found
       }
     }
-    
+
+    if (result.dkim_selectors.length > 0) {
+      result.email_security.dkim_present = true;
+    }
   } catch (error) {
-    console.error('DNS fetch error:', error.message);
+    console.error('DNS analysis error:', error.message);
   }
 
   return result;

@@ -842,9 +842,9 @@ QSR.runCompare = async function () {
   }
 };
 
-/* ── Source 4: Advanced Cryptographic Threat Analysis (Internal Analysis Engine) ───── */
+/* ── Source 4: Internal Threat Analysis (No External APIs) ───── */
 QSR._fetchTLSProbe = async function (host) {
-  var cacheKey = 'crypto_' + host;
+  var cacheKey = 'threat_' + host;
   
   // Check cache first
   if (window._qsrCache && window._qsrCache[cacheKey]) {
@@ -852,23 +852,21 @@ QSR._fetchTLSProbe = async function (host) {
   }
   
   try {
-    // Use internal cryptographic analyzer (no external APIs)
-    var [cryptoData, threatData, dnsData] = await Promise.allSettled([
+    // Use internal cryptographic analyzer + DNS analyzer + threat scorer
+    var [cryptoData, dnsData] = await Promise.allSettled([
       fetch('/api/crypto-analyzer?host=' + encodeURIComponent(host)).then(r => r.ok ? r.json() : null),
-      fetch('/api/dns-analyzer?host=' + encodeURIComponent(host)).then(r => r.ok ? r.json() : null),
-      fetch('/api/get-headers?host=' + encodeURIComponent(host)).then(r => r.ok ? r.json() : null)
+      fetch('/api/dns-analyzer?host=' + encodeURIComponent(host)).then(r => r.ok ? r.json() : null)
     ]);
     
     var c = cryptoData.status === 'fulfilled' ? cryptoData.value : null;
-    var t = threatData.status === 'fulfilled' ? threatData.value : null;
     var d = dnsData.status === 'fulfilled' ? dnsData.value : null;
     
     if (c) {
-      console.log('[Crypto Analyzer]', host, 'Threat Score:', c.threatScore, 'PQC Ready:', c.pqcAssessment.readinessScore);
+      console.log('[Internal Analyzer]', host, 'Threat Score:', c.threatScore, 'PQC Ready:', c.pqcAssessment.readinessScore);
       
       var res = {
         ok: true,
-        headers: d ? d.headers : {},
+        headers: {},
         certificate: c.certificate,
         tlsVersion: c.certificate.tlsVersion,
         keySize: c.certificate.bits,
@@ -877,8 +875,8 @@ QSR._fetchTLSProbe = async function (host) {
         cryptoAnalysis: c,
         pqcAssessment: c.pqcAssessment,
         quantumTimeline: c.quantumRiskTimeline,
-        dnsAnalysis: t ? t.dnsRecords : null,
-        source: 'Internal Cryptographic Threat Engine v2.0'
+        dnsAnalysis: d ? d.dnsRecords : null,
+        source: 'Internal Threat Analysis Engine v2.0 (No External APIs)'
       };
       
       // Cache the result
@@ -887,7 +885,7 @@ QSR._fetchTLSProbe = async function (host) {
       return res;
     }
   } catch (e) {
-    console.warn('[Crypto Analyzer]', host, 'Error:', e.message);
+    console.warn('[Internal Analyzer]', host, 'Error:', e.message);
   }
   
   // Return cached result if available, otherwise empty
