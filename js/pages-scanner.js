@@ -55,6 +55,40 @@ QSR.pages.scanner = function(container) {
     </div>
   </div>
 
+  <!-- Asset Target Inventory -->
+  <div class="panel" id="scanner-assets-panel" style="margin-top:18px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="QSR._toggleScannerAssets()">
+      <div class="panel-title" style="margin:0;">🎯 PNB Asset Inventory — Click any asset to scan instantly</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span id="scanner-assets-badge" style="display:none;font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(139,26,47,0.12);color:#8b1a2f;font-weight:700;"></span>
+        <span id="scanner-assets-chevron" style="font-size:18px;color:#888;transition:transform 0.2s;">▾</span>
+      </div>
+    </div>
+    <div id="scanner-assets-body" style="margin-top:12px;">
+      <!-- Risk filter strip -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
+        <span style="font-size:11px;color:#888;letter-spacing:1px;">FILTER:</span>
+        <button class="chip-btn sa-filter-btn active" data-risk="" onclick="QSR._filterScannerAssets(this)">All</button>
+        <button class="chip-btn sa-filter-btn" data-risk="Critical" onclick="QSR._filterScannerAssets(this)" style="border-color:#e53e3e;color:#e53e3e;">🔴 Critical</button>
+        <button class="chip-btn sa-filter-btn" data-risk="High" onclick="QSR._filterScannerAssets(this)" style="border-color:#ed8936;color:#ed8936;">🟡 High</button>
+        <button class="chip-btn sa-filter-btn" data-risk="Medium" onclick="QSR._filterScannerAssets(this)">Medium</button>
+        <button class="chip-btn sa-filter-btn" data-risk="Low" onclick="QSR._filterScannerAssets(this)" style="border-color:#48bb78;color:#48bb78;">🟢 Low</button>
+        <div style="margin-left:auto;" id="scanner-assets-count" style="font-size:12px;color:#888;"></div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="data-table" id="scanner-assets-table">
+          <thead><tr>
+            <th>Asset</th><th>URL</th><th>Type</th><th>Key</th>
+            <th>Cert</th><th>QR Score</th><th>Risk</th><th style="text-align:center;">Scan</th>
+          </tr></thead>
+          <tbody id="scanner-assets-tbody">
+            <tr><td colspan="8" class="loading-cell">Loading assets...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <!-- Animated Progress -->
   <div id="scan-progress" style="display:none;margin-top:14px;">
     <div class="scan-stages" id="scan-stages">
@@ -172,6 +206,191 @@ QSR.pages.scanner = function(container) {
   QSR._renderScanHistory();
   /* Load DB history asynchronously on page open */
   setTimeout(function() { QSR._loadDBHistory(); }, 300);
+  /* Load asset inventory */
+  QSR._loadScannerAssets();
+};
+
+/* ── Asset Inventory Panel ────────────────────────────────────── */
+QSR._scannerAllAssets = [];
+
+QSR._loadScannerAssets = async function() {
+  var tbody  = document.getElementById('scanner-assets-tbody');
+  var badge  = document.getElementById('scanner-assets-badge');
+  var countEl = document.getElementById('scanner-assets-count');
+  if (!tbody) return;
+
+  /* Fetch from data layer (live Supabase or mock fallback) */
+  var assets = [];
+  if (window.QSR_DataLayer) {
+    try { assets = await QSR_DataLayer.fetchAssets(); } catch(e) {}
+  }
+  if (!assets.length) assets = window.QSR.assets || [];
+  QSR._scannerAllAssets = assets;
+
+  /* Update badge */
+  if (badge) { badge.textContent = assets.length + ' assets'; badge.style.display = 'inline-block'; }
+  QSR._renderScannerAssetsTable(assets);
+};
+
+QSR._renderScannerAssetsTable = function(assets) {
+  var tbody   = document.getElementById('scanner-assets-tbody');
+  var countEl = document.getElementById('scanner-assets-count');
+  if (!tbody) return;
+
+  if (countEl) countEl.textContent = assets.length + ' assets';
+
+  if (!assets.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#888;padding:20px;">No assets found.</td></tr>';
+    return;
+  }
+
+  var riskColor = {
+    Critical: '#e53e3e', High: '#ed8936', Medium: '#ecc94b', Low: '#48bb78'
+  };
+  var certBadge = {
+    Valid:    'badge-ok',
+    Expiring: 'badge-warn',
+    Expired:  'badge-danger'
+  };
+
+  tbody.innerHTML = assets.map(function(a) {
+    var rc  = riskColor[a.risk] || '#aaa';
+    var qs  = a.qrScore != null ? a.qrScore : '—';
+    var qc  = (typeof qs === 'number') ? (qs >= 76 ? '#48bb78' : qs >= 51 ? '#4299e1' : qs >= 26 ? '#ecc94b' : '#e53e3e') : '#888';
+    /* Extract hostname from URL for scanning */
+    var urlHost = (a.url || '').replace(/^https?:\/\//,'').replace(/\/.*/,'');
+    /* Skip internal/non-internet hosts */
+    var isInternal = urlHost.includes('.internal') || urlHost.startsWith('192.') || urlHost.startsWith('10.');
+    var shortUrl = (a.url || '').replace('https://','').replace('http://','').replace(/\/.*/,'');
+
+    return '<tr style="' + (a.risk === 'Critical' ? 'background:rgba(229,62,62,0.04);border-left:3px solid #e53e3e;' : '') + '">' +
+      '<td><div style="font-weight:700;font-size:13px;color:#1a1a2e;">' + (a.name || '—') + '</div>' +
+      '<div style="font-size:11px;color:#888;margin-top:1px;">' + (a.owner || '') + '</div></td>' +
+      '<td><a href="' + (a.url || '#') + '" target="_blank" style="color:#4299e1;font-size:12px;font-family:monospace;">' + shortUrl + '</a></td>' +
+      '<td style="font-size:12px;">' + (a.type || '—') + '</td>' +
+      '<td><code style="font-size:12px;color:' + (a.key <= 1024 ? '#e53e3e' : a.key >= 4096 ? '#48bb78' : '#ed8936') + ';">' + (a.key || '—') + '-bit</code></td>' +
+      '<td><span class="badge ' + (certBadge[a.cert] || 'badge-info') + '">' + (a.cert || '—') + '</span></td>' +
+      '<td style="min-width:130px;">' +
+        '<div style="display:flex;align-items:center;gap:8px;">' +
+          '<div style="flex:1;background:rgba(0,0,0,0.08);border-radius:4px;height:7px;overflow:hidden;">' +
+            '<div style="width:' + (typeof qs === 'number' ? qs : 0) + '%;height:7px;background:' + qc + ';border-radius:4px;transition:width 0.8s;"></div>' +
+          '</div>' +
+          '<span style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:800;color:' + qc + ';min-width:30px;text-align:right;">' + qs + '</span>' +
+        '</div>' +
+      '</td>' +
+      '<td><span style="font-size:11px;padding:3px 8px;border-radius:10px;background:' + rc + '18;color:' + rc + ';border:1px solid ' + rc + ';font-weight:700;white-space:nowrap;">' + (a.risk || '—') + '</span></td>' +
+      '<td style="text-align:center;">' +
+        (isInternal ?
+          '<span style="font-size:11px;color:#888;">Internal</span>' :
+          '<button class="chip-btn" style="font-size:11px;padding:4px 10px;" ' +
+            'onclick="QSR._scanAssetFromTable(\'' + urlHost + '\')">' +
+            '▶ Scan</button>') +
+      '</td>' +
+      '</tr>';
+  }).join('');
+};
+
+/* Clicking Scan in the table: populate input + run scan */
+QSR._scanAssetFromTable = function(host) {
+  var input = document.getElementById('scan-input');
+  if (input) input.value = host;
+  /* Scroll terminal into view */
+  var panel = document.querySelector('.terminal-panel');
+  if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  /* Small delay for smooth scroll, then scan */
+  setTimeout(function() { QSR.runTLSScan(); }, 400);
+};
+
+/* Toggle visibility of the asset table body */
+QSR._toggleScannerAssets = function() {
+  var body    = document.getElementById('scanner-assets-body');
+  var chevron = document.getElementById('scanner-assets-chevron');
+  if (!body) return;
+  var collapsed = body.style.display === 'none';
+  body.style.display    = collapsed ? '' : 'none';
+  if (chevron) chevron.style.transform = collapsed ? '' : 'rotate(-90deg)';
+};
+
+/* Risk filter buttons */
+QSR._filterScannerAssets = function(btn) {
+  /* Toggle active class */
+  document.querySelectorAll('.sa-filter-btn').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  var risk = btn.getAttribute('data-risk') || '';
+  var filtered = risk
+    ? QSR._scannerAllAssets.filter(function(a) { return a.risk === risk; })
+    : QSR._scannerAllAssets;
+  QSR._renderScannerAssetsTable(filtered);
+};
+
+/* ── Sync asset inventory row after a scan completes ───────────────────── */
+/* Finds the asset whose URL hostname matches `host`, updates its   */
+/* in-memory record, then re-renders just that table row in-place.  */
+QSR._syncAssetRowFromScan = function(host, result) {
+  if (!host || !result) return;
+  var tbody = document.getElementById('scanner-assets-tbody');
+  if (!tbody) return;
+
+  /* Find matching asset (loose match: urlHost endsWith host or vice-versa) */
+  var matched = false;
+  QSR._scannerAllAssets.forEach(function(a, idx) {
+    var aHost = (a.url || '').replace(/^https?:\/\//,'').replace(/\/.*/,'').toLowerCase();
+    if (aHost !== host && !aHost.endsWith('.' + host) && !host.endsWith('.' + aHost)) return;
+
+    /* Update in-memory record with real scan data */
+    if (result.qScore   != null) a.qrScore = result.qScore;
+    if (result.keySize  != null) a.key     = result.keySize;
+    /* Derive cert status from days_left */
+    if (result.daysLeft != null) {
+      a.cert = result.daysLeft <= 0 ? 'Expired' : result.daysLeft <= 30 ? 'Expiring' : 'Valid';
+    }
+    /* Risk from QR score */
+    if (result.qScore != null) {
+      a.risk = result.qScore >= 76 ? 'Low' : result.qScore >= 51 ? 'Medium' : result.qScore >= 26 ? 'High' : 'Critical';
+    }
+    matched = true;
+
+    /* Re-render just this row in the table */
+    var rows = tbody.querySelectorAll('tr');
+    if (rows[idx]) {
+      var riskColor = { Critical:'#e53e3e', High:'#ed8936', Medium:'#ecc94b', Low:'#48bb78' };
+      var certBadge = { Valid:'badge-ok', Expiring:'badge-warn', Expired:'badge-danger' };
+      var rc  = riskColor[a.risk] || '#aaa';
+      var qs  = a.qrScore != null ? a.qrScore : '—';
+      var qc  = (typeof qs === 'number') ? (qs >= 76 ? '#48bb78' : qs >= 51 ? '#4299e1' : qs >= 26 ? '#ecc94b' : '#e53e3e') : '#888';
+      var urlHost = (a.url || '').replace(/^https?:\/\//,'').replace(/\/.*/,'');
+      var isInternal = urlHost.includes('.internal') || urlHost.startsWith('192.') || urlHost.startsWith('10.');
+      var shortUrl = (a.url || '').replace('https://','').replace('http://','').replace(/\/.*/,'');
+
+      rows[idx].style.transition = 'background 0.5s';
+      rows[idx].style.background = 'rgba(72,187,120,0.12)';
+      rows[idx].innerHTML =
+        '<td><div style="font-weight:700;font-size:13px;color:#1a1a2e;">' + (a.name || '—') + '</div>' +
+        '<div style="font-size:11px;color:#48bb78;margin-top:1px;font-weight:600;">✓ Just Scanned</div></td>' +
+        '<td><a href="' + (a.url || '#') + '" target="_blank" style="color:#4299e1;font-size:12px;font-family:monospace;">' + shortUrl + '</a></td>' +
+        '<td style="font-size:12px;">' + (a.type || '—') + '</td>' +
+        '<td><code style="font-size:12px;color:' + (a.key <= 1024 ? '#e53e3e' : a.key >= 4096 ? '#48bb78' : '#ed8936') + ';">' + (a.key || '—') + '-bit</code></td>' +
+        '<td><span class="badge ' + (certBadge[a.cert] || 'badge-info') + '">' + (a.cert || '—') + '</span></td>' +
+        '<td style="min-width:130px;">' +
+          '<div style="display:flex;align-items:center;gap:8px;">' +
+            '<div style="flex:1;background:rgba(0,0,0,0.08);border-radius:4px;height:7px;overflow:hidden;">' +
+              '<div style="width:' + (typeof qs === 'number' ? qs : 0) + '%;height:7px;background:' + qc + ';border-radius:4px;transition:width 0.8s;"></div>' +
+            '</div>' +
+            '<span style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:800;color:' + qc + ';min-width:30px;text-align:right;">' + qs + '</span>' +
+          '</div>' +
+        '</td>' +
+        '<td><span style="font-size:11px;padding:3px 8px;border-radius:10px;background:' + rc + '18;color:' + rc + ';border:1px solid ' + rc + ';font-weight:700;white-space:nowrap;">' + (a.risk || '—') + '</span></td>' +
+        '<td style="text-align:center;">' +
+          (isInternal ? '<span style="font-size:11px;color:#888;">Internal</span>' :
+            '<button class="chip-btn" style="font-size:11px;padding:4px 10px;" onclick="QSR._scanAssetFromTable(\'' + urlHost + '\')">&#8635; Re-scan</button>') +
+        '</td>';
+
+      /* Fade the green highlight away after 3s */
+      setTimeout(function() {
+        if (rows[idx]) rows[idx].style.background = (a.risk === 'Critical') ? 'rgba(229,62,62,0.04)' : '';
+      }, 3000);
+    }
+  });
 };
 
 /* ── Stage animation ─────────────────────────────────────────── */
@@ -223,6 +442,102 @@ QSR._validateHost = function(host) {
   return null; /* null = valid */
 };
 
+/* ── Host Reachability Check ────────────────────────────────────── */
+/* Returns { reachable: bool, detail: string }                         */
+QSR._checkHostReachable = async function(host) {
+  /* --- Strategy 1: DNS-A record. NXDOMAIN = dead domain --- */
+  try {
+    var dnsCheck = await fetch(
+      'https://cloudflare-dns.com/dns-query?name=' + encodeURIComponent(host) + '&type=A',
+      { headers: { accept: 'application/dns-json' }, signal: AbortSignal.timeout(5000) }
+    );
+    if (dnsCheck.ok) {
+      var dj = await dnsCheck.json();
+      if (dj.Status === 3) return { reachable: false, detail: 'Domain does not exist (NXDOMAIN) — no DNS record found' };
+      if (dj.Status === 2) return { reachable: false, detail: 'DNS server failure (SERVFAIL) — domain may be misconfigured' };
+      var aRecs = (dj.Answer || []).filter(function(a){ return a.type === 1; });
+      if (!aRecs.length) return { reachable: false, detail: 'No A records found — domain resolves but has no IPv4 endpoint' };
+    }
+  } catch(e) { /* DNS fetch timed out, continue */ }
+
+  /* --- Strategy 2: CORS proxy HTTP probe. Server must respond --- */
+  var proxies = [
+    'https://api.allorigins.win/get?url=' + encodeURIComponent('https://' + host + '/'),
+    'https://corsproxy.io/?url='           + encodeURIComponent('https://' + host + '/')
+  ];
+  for (var i = 0; i < proxies.length; i++) {
+    try {
+      var pr = await fetch(proxies[i], { signal: AbortSignal.timeout(8000) });
+      if (pr.ok) {
+        var pj = await pr.json();
+        var code = (pj.status && pj.status.http_code) ? pj.status.http_code : (pj.status_code || 200);
+        if (code === 0 || code === null) continue;  /* proxy itself couldn't connect */
+        return { reachable: true, detail: 'HTTP ' + code + ' — server is responding' };
+      }
+    } catch(e2) { /* try next */ }
+  }
+
+  /* --- Strategy 3: Image/resource timing probe (last resort) --- */
+  try {
+    var probeUrl = 'https://' + host + '/favicon.ico?_qsr=' + Date.now();
+    var img = new Image();
+    var imgRes = await new Promise(function(resolve) {
+      img.onload  = function() { resolve('loaded'); };
+      img.onerror = function() { resolve('error-response'); }; /* error = server DID respond */
+      img.src = probeUrl;
+      setTimeout(function() { resolve('timeout'); }, 6000);
+    });
+    if (imgRes !== 'timeout') {
+      return { reachable: true, detail: 'Server acknowledged connection (' + imgRes + ')' };
+    }
+  } catch(e3) { /* ignore */ }
+
+  /* All probes failed */
+  return { reachable: false, detail: 'No response from ' + host + ' — server is down, firewalled, or the domain does not exist' };
+};
+
+/* ── "Can't Access" error display ──────────────────────────────── */
+QSR._showHostUnreachable = function(host, detail) {
+  var prog = document.getElementById('scan-progress');
+  if (prog) prog.style.display = 'none';
+  var old = document.getElementById('unreachable-panel');
+  if (old) old.remove();
+
+  var panel = document.createElement('div');
+  panel.id = 'unreachable-panel';
+  panel.style.cssText = 'margin-top:18px;border-radius:14px;padding:28px 32px;' +
+    'background:linear-gradient(135deg,rgba(229,62,62,0.08),rgba(139,26,47,0.05));' +
+    'border:1.5px solid rgba(229,62,62,0.35);animation:fadeIn 0.3s ease;';
+  panel.innerHTML =
+    '<div style="display:flex;align-items:flex-start;gap:18px;">' +
+      '<div style="font-size:44px;flex-shrink:0;line-height:1;">🚫</div>' +
+      '<div style="flex:1;">' +
+        '<div style="font-family:Rajdhani,sans-serif;font-size:22px;font-weight:800;' +
+             'color:#e53e3e;letter-spacing:1px;margin-bottom:6px;">Cannot Access &mdash; ' +
+             QSR._sanitize(host) + '</div>' +
+        '<div style="font-size:13px;color:#c53030;margin-bottom:16px;line-height:1.7;">' +
+             QSR._sanitize(detail) + '</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">' +
+          '<span style="font-size:12px;padding:5px 12px;border-radius:8px;background:rgba(229,62,62,0.08);' +
+               'border:1px solid rgba(229,62,62,0.2);color:#c53030;">❌ DNS probe failed</span>' +
+          '<span style="font-size:12px;padding:5px 12px;border-radius:8px;background:rgba(229,62,62,0.08);' +
+               'border:1px solid rgba(229,62,62,0.2);color:#c53030;">❌ HTTP probes timed out</span>' +
+          '<span style="font-size:12px;padding:5px 12px;border-radius:8px;background:rgba(229,62,62,0.08);' +
+               'border:1px solid rgba(229,62,62,0.2);color:#c53030;">❌ Resource timing — no response</span>' +
+        '</div>' +
+        '<div style="padding:10px 14px;border-radius:8px;border-left:3px solid #ed8936;' +
+             'background:rgba(237,137,54,0.06);font-size:12px;color:#4a4a6a;line-height:1.6;">' +
+          '<strong>Scan aborted — no results will be shown.</strong> Displaying data for an unreachable host ' +
+          'would be inaccurate and misleading. Verify the domain is correct and publicly accessible.' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  var progressEl = document.getElementById('scan-progress');
+  if (progressEl) progressEl.parentNode.insertBefore(panel, progressEl.nextSibling);
+  if (window.showToast) showToast('🚫 Cannot reach ' + host + ' — scan aborted', 'error');
+};
+
 /* ── Main scan runner ────────────────────────────────────────── */
 QSR.runTLSScan = async function() {
   var input = document.getElementById('scan-input');
@@ -246,11 +561,28 @@ QSR.runTLSScan = async function() {
   var errEl = document.getElementById('url-error-msg');
   if (errEl) errEl.style.display = 'none';
 
+  /* Clear any leftover unreachable panel from prior attempt */
+  var oldPanel = document.getElementById('unreachable-panel');
+  if (oldPanel) oldPanel.remove();
+
   var btn = document.getElementById('scan-btn');
-  btn.disabled = true; btn.innerHTML = '⏳ Scanning...';
+  btn.disabled = true; btn.innerHTML = '⏳ Checking...';
   document.getElementById('scan-progress').style.display = 'block';
   document.getElementById('scan-results').style.display = 'none';
   document.getElementById('compare-results').style.display = 'none';
+
+  /* ── REACHABILITY GATE: abort early if host is dead ── */
+  QSR._setStage(0, 5, 'Checking if ' + host + ' is reachable...');
+  var _reach;
+  try { _reach = await QSR._checkHostReachable(host); }
+  catch(e) { _reach = { reachable: false, detail: 'Probe error: ' + e.message }; }
+
+  if (!_reach.reachable) {
+    btn.disabled = false; btn.innerHTML = '▶ SCAN';
+    QSR._showHostUnreachable(host, _reach.detail);
+    return;
+  }
+  btn.innerHTML = '⏳ Scanning...';
 
   try {
     QSR._setStage(0, 10, `Resolving ${host} via Cloudflare DoH + MX + NS + CAA + TXT records...`);
@@ -293,6 +625,9 @@ QSR.runTLSScan = async function() {
     QSR._renderScanResult(result);
     QSR._setStage(4, 100, '✓ Scan complete — 8 data sources analysed');
     document.getElementById('scan-results').style.display = 'block';
+
+    /* ── Sync asset inventory row with fresh scan data ── */
+    QSR._syncAssetRowFromScan(host, result);
 
     /* ── Innovation renderers ── */
     if (QSR._renderHNDLTimeline)    QSR._renderHNDLTimeline(result);
