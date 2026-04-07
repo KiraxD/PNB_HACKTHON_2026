@@ -57,7 +57,7 @@ function _assessIdentity() {
   var findings = [];
 
   /* MFA check */
-  var hasMFA = !!user.mfa_verified || window.QSR_SUPABASE_READY || _state.mfaVerified;
+  var hasMFA = !!user.mfa_verified || _state.mfaVerified;
   if (hasMFA) { score += 40; findings.push({ ok:true,  label:'MFA Verified',        detail:'Multi-factor authentication confirmed' }); }
   else         { score += 15; findings.push({ ok:false, label:'MFA Not Verified',    detail:'Session lacks MFA — reduced identity trust' }); }
 
@@ -306,6 +306,11 @@ ZT.trackScan = function(host) {
 /* Track failed action */
 ZT.trackFailure = function() {
   _state.failedActions++;
+  _state.lastActivity = Date.now();
+};
+
+ZT.noteMFAVerified = function(value) {
+  _state.mfaVerified = value !== false;
   _state.lastActivity = Date.now();
 };
 

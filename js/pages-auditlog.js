@@ -115,12 +115,6 @@ QSR._loadAudit = async function(limit) {
       rows = data || [];
     } catch(e) {}
   }
-  if (!rows.length && window.QSR?.recentScans) {
-    rows = window.QSR.recentScans.map((s,i) => ({
-      id:i, action:s.msg, target:'', ip_addr:'192.168.1.1',
-      icon:s.icon||'LOG', created_at:new Date(Date.now()-i*600000).toISOString()
-    }));
-  }
   window._auditRows = rows;
   QSR._updateAuditStats(rows);
   QSR._renderAudit(rows);

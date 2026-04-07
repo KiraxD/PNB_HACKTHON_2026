@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   email      TEXT,
   full_name  TEXT,
   role       TEXT NOT NULL DEFAULT 'soc' CHECK (role IN ('soc','admin','compliance')),
+  status     TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','pending','revoked')),
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -21,7 +22,7 @@ BEGIN
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email),
-    COALESCE(NEW.raw_user_meta_data->>'role', 'soc')
+    'soc'
   );
   RETURN NEW;
 END;
@@ -44,6 +45,8 @@ CREATE TABLE IF NOT EXISTS public.assets (
   risk        TEXT CHECK (risk IN ('Critical','High','Medium','Low')),
   cert_status TEXT CHECK (cert_status IN ('Valid','Expiring','Expired')),
   key_length  INTEGER DEFAULT 2048,
+  qr_score    INTEGER,
+  pqc_bucket  TEXT,
   last_scan   TIMESTAMPTZ,
   created_at  TIMESTAMPTZ DEFAULT now()
 );
@@ -141,7 +144,7 @@ CREATE TABLE IF NOT EXISTS public.pqc_scores (
 CREATE TABLE IF NOT EXISTS public.cyber_rating (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   enterprise_score INTEGER,
-  max_score        INTEGER DEFAULT 1000,
+  max_score        INTEGER DEFAULT 100,
   grade            TEXT,
   calculated_at    TIMESTAMPTZ DEFAULT now()
 );
@@ -169,6 +172,26 @@ CREATE TABLE IF NOT EXISTS public.reports (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Scan History - per-user scanner evidence + readiness snapshots
+CREATE TABLE IF NOT EXISTS public.scan_history (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  host         TEXT NOT NULL,
+  grade        TEXT,
+  tls_version  TEXT,
+  key_alg      TEXT,
+  key_size     INTEGER,
+  q_score      INTEGER DEFAULT 0,
+  q_vulnerable BOOLEAN DEFAULT false,
+  issuer       TEXT,
+  not_after    TEXT,
+  days_left    INTEGER,
+  cert_count   INTEGER DEFAULT 0,
+  sources      JSONB DEFAULT '[]'::jsonb,
+  raw_result   JSONB DEFAULT '{}'::jsonb,
+  scanned_at   TIMESTAMPTZ DEFAULT now()
+);
+
 -- ═══════════════════════════════════════════════════════════════
 -- ROW LEVEL SECURITY (FR3 — Zero Trust)
 -- ═══════════════════════════════════════════════════════════════
@@ -186,22 +209,57 @@ ALTER TABLE public.pqc_scores     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cyber_rating   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_log      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reports        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.scan_history   ENABLE ROW LEVEL SECURITY;
 
 -- Profiles: users can read own profile
 CREATE POLICY "profiles_select_own" ON public.profiles
   FOR SELECT USING (auth.uid() = id);
 
+CREATE POLICY "profiles_select_admin" ON public.profiles
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1
+      FROM public.profiles p
+      WHERE p.id = auth.uid() AND p.role = 'admin'
+    )
+  );
+
+CREATE POLICY "profiles_update_admin" ON public.profiles
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1
+      FROM public.profiles p
+      WHERE p.id = auth.uid() AND p.role = 'admin'
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1
+      FROM public.profiles p
+      WHERE p.id = auth.uid() AND p.role = 'admin'
+    )
+  );
+
 -- All core data tables: any authenticated user can read (FR3 — least privilege)
 CREATE POLICY "assets_select_auth"    ON public.assets    FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "assets_insert_auth"    ON public.assets    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "assets_update_auth"    ON public.assets    FOR UPDATE USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "domains_select_auth"   ON public.domains   FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "ssl_select_auth"       ON public.ssl_certs FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "ip_select_auth"        ON public.ip_subnets FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "software_select_auth"  ON public.software  FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "crypto_select_auth"    ON public.crypto_overview FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "crypto_insert_auth"    ON public.crypto_overview FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "crypto_update_auth"    ON public.crypto_overview FOR UPDATE USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "ns_select_auth"        ON public.nameservers FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "cbom_select_auth"      ON public.cbom      FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "cbom_insert_auth"      ON public.cbom      FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "cbom_update_auth"      ON public.cbom      FOR UPDATE USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "pqc_select_auth"       ON public.pqc_scores FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "pqc_insert_auth"       ON public.pqc_scores FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "pqc_update_auth"       ON public.pqc_scores FOR UPDATE USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 CREATE POLICY "cyberrating_select"    ON public.cyber_rating FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "cyberrating_insert_auth" ON public.cyber_rating FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
 -- Audit log: any auth user can select; any auth user can insert own actions
 CREATE POLICY "audit_select_auth"  ON public.audit_log FOR SELECT USING (auth.role() = 'authenticated');
@@ -209,6 +267,29 @@ CREATE POLICY "audit_insert_auth"  ON public.audit_log FOR INSERT WITH CHECK (au
 
 -- Reports: users see only own reports
 CREATE POLICY "reports_own" ON public.reports FOR ALL USING (auth.uid() = created_by);
+
+-- Scan history: users can manage only their own saved scans
+CREATE POLICY "scan_history_select_own" ON public.scan_history
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "scan_history_insert_own" ON public.scan_history
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "scan_history_update_own" ON public.scan_history
+  FOR UPDATE USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "scan_history_delete_own" ON public.scan_history
+  FOR DELETE USING (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS idx_scan_history_user_scanned_at
+  ON public.scan_history (user_id, scanned_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_pqc_scores_asset_id
+  ON public.pqc_scores (asset_id, assessed_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_assets_last_scan
+  ON public.assets (last_scan DESC);
 
 -- ═══════════════════════════════════════════════════════════════
 -- HELPER: Admin bypass (service role bypasses RLS automatically)

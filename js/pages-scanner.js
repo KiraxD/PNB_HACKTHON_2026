@@ -5,7 +5,7 @@
 window.QSR = window.QSR || {};
 window.QSR.pages = window.QSR.pages || {};
 
-QSR.pages.scanner = function(container) {
+QSR.pages.scanner = function (container) {
   container.innerHTML = `
   <div class="page-header">
     <div>
@@ -73,7 +73,7 @@ QSR.pages.scanner = function(container) {
         <table class="data-table" id="scanner-assets-table">
           <thead><tr>
             <th>Asset</th><th>URL</th><th>Type</th><th>Key</th>
-            <th>Cert</th><th>QR Score</th><th>Risk</th><th style="text-align:center;">Scan</th>
+            <th>Cert</th><th>PQC Score</th><th>Risk</th><th style="text-align:center;">Scan</th>
           </tr></thead>
           <tbody id="scanner-assets-tbody">
             <tr><td colspan="8" class="loading-cell">Loading assets...</td></tr>
@@ -86,9 +86,9 @@ QSR.pages.scanner = function(container) {
   <!-- Animated Progress -->
   <div id="scan-progress" style="display:none;margin-top:14px;">
     <div class="scan-stages" id="scan-stages">
-      ${['DNS Resolution','TLS Handshake','Cipher Harvest','Certificate Parse','Quantum Assessment'].map((s,i) =>
-        `<div class="scan-stage" id="stage-${i}"><span class="stage-dot"></span>${s}</div>`
-      ).join('')}
+      ${['DNS Resolution', 'TLS Handshake', 'Cipher Harvest', 'Certificate Parse', 'Quantum Assessment'].map((s, i) =>
+    `<div class="scan-stage" id="stage-${i}"><span class="stage-dot"></span>${s}</div>`
+  ).join('')}
     </div>
     <div class="progress-wrap" style="margin-top:8px;">
       <div id="scan-progress-bar" style="height:4px;background:linear-gradient(90deg,#8b1a2f,#4299e1);border-radius:2px;width:0%;transition:width 0.4s ease;"></div>
@@ -107,12 +107,12 @@ QSR.pages.scanner = function(container) {
       </div>
       <!-- Quantum Gauge -->
       <div class="panel" style="display:flex;flex-direction:column;align-items:center;">
-        <div class="panel-title" style="width:100%;">⏳ Quantum Risk Score</div>
+        <div class="panel-title" style="width:100%;">⏳ PQC Readiness Score</div>
         <div style="position:relative;width:220px;height:220px;">
           <canvas id="scanner-gauge" style="width:220px;height:220px;display:block;"></canvas>
           <div id="scanner-gauge-label" style="position:absolute;bottom:10%;left:50%;transform:translateX(-50%);text-align:center;">
             <div style="font-family:Rajdhani,sans-serif;font-size:44px;font-weight:800;color:#e53e3e;" id="qr-score-big">—</div>
-            <div style="font-size:11px;color:#888;">/100 QR Score</div>
+            <div style="font-size:11px;color:#888;">/100 PQC Score</div>
           </div>
         </div>
         <div id="quantum-factors" style="width:100%;margin-top:10px;"></div>
@@ -199,7 +199,7 @@ QSR.pages.scanner = function(container) {
   window._scanHistory = window._scanHistory || [];
   QSR._renderScanHistory();
   /* Load DB history asynchronously on page open */
-  setTimeout(function() { QSR._loadDBHistory(); }, 300);
+  setTimeout(function () { QSR._loadDBHistory(); }, 300);
   /* Load asset inventory */
   QSR._loadScannerAssets();
 };
@@ -207,18 +207,17 @@ QSR.pages.scanner = function(container) {
 /* ── Asset Inventory Panel ────────────────────────────────────── */
 QSR._scannerAllAssets = [];
 
-QSR._loadScannerAssets = async function() {
-  var tbody  = document.getElementById('scanner-assets-tbody');
-  var badge  = document.getElementById('scanner-assets-badge');
+QSR._loadScannerAssets = async function () {
+  var tbody = document.getElementById('scanner-assets-tbody');
+  var badge = document.getElementById('scanner-assets-badge');
   var countEl = document.getElementById('scanner-assets-count');
   if (!tbody) return;
 
   /* Fetch from data layer (live Supabase or mock fallback) */
   var assets = [];
   if (window.QSR_DataLayer) {
-    try { assets = await QSR_DataLayer.fetchAssets(); } catch(e) {}
+    try { assets = await QSR_DataLayer.fetchAssets(); } catch (e) { }
   }
-  if (!assets.length) assets = window.QSR.assets || [];
   QSR._scannerAllAssets = assets;
 
   /* Update badge */
@@ -226,8 +225,8 @@ QSR._loadScannerAssets = async function() {
   QSR._renderScannerAssetsTable(assets);
 };
 
-QSR._renderScannerAssetsTable = function(assets) {
-  var tbody   = document.getElementById('scanner-assets-tbody');
+QSR._renderScannerAssetsTable = function (assets) {
+  var tbody = document.getElementById('scanner-assets-tbody');
   var countEl = document.getElementById('scanner-assets-count');
   if (!tbody) return;
 
@@ -242,20 +241,20 @@ QSR._renderScannerAssetsTable = function(assets) {
     Critical: '#e53e3e', High: '#ed8936', Medium: '#ecc94b', Low: '#48bb78'
   };
   var certBadge = {
-    Valid:    'badge-ok',
+    Valid: 'badge-ok',
     Expiring: 'badge-warn',
-    Expired:  'badge-danger'
+    Expired: 'badge-danger'
   };
 
-  tbody.innerHTML = assets.map(function(a) {
-    var rc  = riskColor[a.risk] || '#aaa';
-    var qs  = a.qrScore != null ? a.qrScore : '—';
-    var qc  = (typeof qs === 'number') ? (qs >= 76 ? '#48bb78' : qs >= 51 ? '#4299e1' : qs >= 26 ? '#ecc94b' : '#e53e3e') : '#888';
+  tbody.innerHTML = assets.map(function (a) {
+    var rc = riskColor[a.risk] || '#aaa';
+    var qs = a.qrScore != null ? a.qrScore : '—';
+    var qc = (typeof qs === 'number') ? (qs >= 76 ? '#48bb78' : qs >= 51 ? '#4299e1' : qs >= 26 ? '#ecc94b' : '#e53e3e') : '#888';
     /* Extract hostname from URL for scanning */
-    var urlHost = (a.url || '').replace(/^https?:\/\//,'').replace(/\/.*/,'');
+    var urlHost = (a.url || '').replace(/^https?:\/\//, '').replace(/\/.*/, '');
     /* Skip internal/non-internet hosts */
     var isInternal = urlHost.includes('.internal') || urlHost.startsWith('192.') || urlHost.startsWith('10.');
-    var shortUrl = (a.url || '').replace('https://','').replace('http://','').replace(/\/.*/,'');
+    var shortUrl = (a.url || '').replace('https://', '').replace('http://', '').replace(/\/.*/, '');
 
     return '<tr style="' + (a.risk === 'Critical' ? 'background:rgba(229,62,62,0.04);border-left:3px solid #e53e3e;' : '') + '">' +
       '<td><div style="font-weight:700;font-size:13px;color:#1a1a2e;">' + (a.name || '—') + '</div>' +
@@ -265,54 +264,54 @@ QSR._renderScannerAssetsTable = function(assets) {
       '<td><code style="font-size:12px;color:' + (a.key <= 1024 ? '#e53e3e' : a.key >= 4096 ? '#48bb78' : '#ed8936') + ';">' + (a.key || '—') + '-bit</code></td>' +
       '<td><span class="badge ' + (certBadge[a.cert] || 'badge-info') + '">' + (a.cert || '—') + '</span></td>' +
       '<td style="min-width:130px;">' +
-        '<div style="display:flex;align-items:center;gap:8px;">' +
-          '<div style="flex:1;background:rgba(0,0,0,0.08);border-radius:4px;height:7px;overflow:hidden;">' +
-            '<div style="width:' + (typeof qs === 'number' ? qs : 0) + '%;height:7px;background:' + qc + ';border-radius:4px;transition:width 0.8s;"></div>' +
-          '</div>' +
-          '<span style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:800;color:' + qc + ';min-width:30px;text-align:right;">' + qs + '</span>' +
-        '</div>' +
+      '<div style="display:flex;align-items:center;gap:8px;">' +
+      '<div style="flex:1;background:rgba(0,0,0,0.08);border-radius:4px;height:7px;overflow:hidden;">' +
+      '<div style="width:' + (typeof qs === 'number' ? qs : 0) + '%;height:7px;background:' + qc + ';border-radius:4px;transition:width 0.8s;"></div>' +
+      '</div>' +
+      '<span style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:800;color:' + qc + ';min-width:30px;text-align:right;">' + qs + '</span>' +
+      '</div>' +
       '</td>' +
       '<td><span style="font-size:11px;padding:3px 8px;border-radius:10px;background:' + rc + '18;color:' + rc + ';border:1px solid ' + rc + ';font-weight:700;white-space:nowrap;">' + (a.risk || '—') + '</span></td>' +
       '<td style="text-align:center;">' +
-        (isInternal ?
-          '<span style="font-size:11px;color:#888;">Internal</span>' :
-          '<button class="chip-btn" style="font-size:11px;padding:4px 10px;" ' +
-            'onclick="QSR._scanAssetFromTable(\'' + urlHost + '\')">' +
-            '▶ Scan</button>') +
+      (isInternal ?
+        '<span style="font-size:11px;color:#888;">Internal</span>' :
+        '<button class="chip-btn" style="font-size:11px;padding:4px 10px;" ' +
+        'onclick="QSR._scanAssetFromTable(\'' + urlHost + '\')">' +
+        '▶ Scan</button>') +
       '</td>' +
       '</tr>';
   }).join('');
 };
 
 /* Clicking Scan in the table: populate input + run scan */
-QSR._scanAssetFromTable = function(host) {
+QSR._scanAssetFromTable = function (host) {
   var input = document.getElementById('scan-input');
   if (input) input.value = host;
   /* Scroll terminal into view */
   var panel = document.querySelector('.terminal-panel');
   if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   /* Small delay for smooth scroll, then scan */
-  setTimeout(function() { QSR.runTLSScan(); }, 400);
+  setTimeout(function () { QSR.runTLSScan(); }, 400);
 };
 
 /* Toggle visibility of the asset table body */
-QSR._toggleScannerAssets = function() {
-  var body    = document.getElementById('scanner-assets-body');
+QSR._toggleScannerAssets = function () {
+  var body = document.getElementById('scanner-assets-body');
   var chevron = document.getElementById('scanner-assets-chevron');
   if (!body) return;
   var collapsed = body.style.display === 'none';
-  body.style.display    = collapsed ? '' : 'none';
+  body.style.display = collapsed ? '' : 'none';
   if (chevron) chevron.style.transform = collapsed ? '' : 'rotate(-90deg)';
 };
 
 /* Risk filter buttons */
-QSR._filterScannerAssets = function(btn) {
+QSR._filterScannerAssets = function (btn) {
   /* Toggle active class */
-  document.querySelectorAll('.sa-filter-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.querySelectorAll('.sa-filter-btn').forEach(function (b) { b.classList.remove('active'); });
   btn.classList.add('active');
   var risk = btn.getAttribute('data-risk') || '';
   var filtered = risk
-    ? QSR._scannerAllAssets.filter(function(a) { return a.risk === risk; })
+    ? QSR._scannerAllAssets.filter(function (a) { return a.risk === risk; })
     : QSR._scannerAllAssets;
   QSR._renderScannerAssetsTable(filtered);
 };
@@ -320,20 +319,20 @@ QSR._filterScannerAssets = function(btn) {
 /* ── Sync asset inventory row after a scan completes ───────────────────── */
 /* Finds the asset whose URL hostname matches `host`, updates its   */
 /* in-memory record, then re-renders just that table row in-place.  */
-QSR._syncAssetRowFromScan = function(host, result) {
+QSR._syncAssetRowFromScan = function (host, result) {
   if (!host || !result) return;
   var tbody = document.getElementById('scanner-assets-tbody');
   if (!tbody) return;
 
   /* Find matching asset (loose match: urlHost endsWith host or vice-versa) */
   var matched = false;
-  QSR._scannerAllAssets.forEach(function(a, idx) {
-    var aHost = (a.url || '').replace(/^https?:\/\//,'').replace(/\/.*/,'').toLowerCase();
+  QSR._scannerAllAssets.forEach(function (a, idx) {
+    var aHost = (a.url || '').replace(/^https?:\/\//, '').replace(/\/.*/, '').toLowerCase();
     if (aHost !== host && !aHost.endsWith('.' + host) && !host.endsWith('.' + aHost)) return;
 
     /* Update in-memory record with real scan data */
-    if (result.qScore   != null) a.qrScore = result.qScore;
-    if (result.keySize  != null) a.key     = result.keySize;
+    if (result.qScore != null) a.qrScore = result.qScore;
+    if (result.keySize != null) a.key = result.keySize;
     /* Derive cert status from days_left */
     if (result.daysLeft != null) {
       a.cert = result.daysLeft <= 0 ? 'Expired' : result.daysLeft <= 30 ? 'Expiring' : 'Valid';
@@ -347,14 +346,14 @@ QSR._syncAssetRowFromScan = function(host, result) {
     /* Re-render just this row in the table */
     var rows = tbody.querySelectorAll('tr');
     if (rows[idx]) {
-      var riskColor = { Critical:'#e53e3e', High:'#ed8936', Medium:'#ecc94b', Low:'#48bb78' };
-      var certBadge = { Valid:'badge-ok', Expiring:'badge-warn', Expired:'badge-danger' };
-      var rc  = riskColor[a.risk] || '#aaa';
-      var qs  = a.qrScore != null ? a.qrScore : '—';
-      var qc  = (typeof qs === 'number') ? (qs >= 76 ? '#48bb78' : qs >= 51 ? '#4299e1' : qs >= 26 ? '#ecc94b' : '#e53e3e') : '#888';
-      var urlHost = (a.url || '').replace(/^https?:\/\//,'').replace(/\/.*/,'');
+      var riskColor = { Critical: '#e53e3e', High: '#ed8936', Medium: '#ecc94b', Low: '#48bb78' };
+      var certBadge = { Valid: 'badge-ok', Expiring: 'badge-warn', Expired: 'badge-danger' };
+      var rc = riskColor[a.risk] || '#aaa';
+      var qs = a.qrScore != null ? a.qrScore : '—';
+      var qc = (typeof qs === 'number') ? (qs >= 76 ? '#48bb78' : qs >= 51 ? '#4299e1' : qs >= 26 ? '#ecc94b' : '#e53e3e') : '#888';
+      var urlHost = (a.url || '').replace(/^https?:\/\//, '').replace(/\/.*/, '');
       var isInternal = urlHost.includes('.internal') || urlHost.startsWith('192.') || urlHost.startsWith('10.');
-      var shortUrl = (a.url || '').replace('https://','').replace('http://','').replace(/\/.*/,'');
+      var shortUrl = (a.url || '').replace('https://', '').replace('http://', '').replace(/\/.*/, '');
 
       rows[idx].style.transition = 'background 0.5s';
       rows[idx].style.background = 'rgba(72,187,120,0.12)';
@@ -366,21 +365,21 @@ QSR._syncAssetRowFromScan = function(host, result) {
         '<td><code style="font-size:12px;color:' + (a.key <= 1024 ? '#e53e3e' : a.key >= 4096 ? '#48bb78' : '#ed8936') + ';">' + (a.key || '—') + '-bit</code></td>' +
         '<td><span class="badge ' + (certBadge[a.cert] || 'badge-info') + '">' + (a.cert || '—') + '</span></td>' +
         '<td style="min-width:130px;">' +
-          '<div style="display:flex;align-items:center;gap:8px;">' +
-            '<div style="flex:1;background:rgba(0,0,0,0.08);border-radius:4px;height:7px;overflow:hidden;">' +
-              '<div style="width:' + (typeof qs === 'number' ? qs : 0) + '%;height:7px;background:' + qc + ';border-radius:4px;transition:width 0.8s;"></div>' +
-            '</div>' +
-            '<span style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:800;color:' + qc + ';min-width:30px;text-align:right;">' + qs + '</span>' +
-          '</div>' +
+        '<div style="display:flex;align-items:center;gap:8px;">' +
+        '<div style="flex:1;background:rgba(0,0,0,0.08);border-radius:4px;height:7px;overflow:hidden;">' +
+        '<div style="width:' + (typeof qs === 'number' ? qs : 0) + '%;height:7px;background:' + qc + ';border-radius:4px;transition:width 0.8s;"></div>' +
+        '</div>' +
+        '<span style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:800;color:' + qc + ';min-width:30px;text-align:right;">' + qs + '</span>' +
+        '</div>' +
         '</td>' +
         '<td><span style="font-size:11px;padding:3px 8px;border-radius:10px;background:' + rc + '18;color:' + rc + ';border:1px solid ' + rc + ';font-weight:700;white-space:nowrap;">' + (a.risk || '—') + '</span></td>' +
         '<td style="text-align:center;">' +
-          (isInternal ? '<span style="font-size:11px;color:#888;">Internal</span>' :
-            '<button class="chip-btn" style="font-size:11px;padding:4px 10px;" onclick="QSR._scanAssetFromTable(\'' + urlHost + '\')">&#8635; Re-scan</button>') +
+        (isInternal ? '<span style="font-size:11px;color:#888;">Internal</span>' :
+          '<button class="chip-btn" style="font-size:11px;padding:4px 10px;" onclick="QSR._scanAssetFromTable(\'' + urlHost + '\')">&#8635; Re-scan</button>') +
         '</td>';
 
       /* Fade the green highlight away after 3s */
-      setTimeout(function() {
+      setTimeout(function () {
         if (rows[idx]) rows[idx].style.background = (a.risk === 'Critical') ? 'rgba(229,62,62,0.04)' : '';
       }, 3000);
     }
@@ -388,7 +387,7 @@ QSR._syncAssetRowFromScan = function(host, result) {
 };
 
 /* ── Stage animation ─────────────────────────────────────────── */
-QSR._setStage = function(idx, pct, msg) {
+QSR._setStage = function (idx, pct, msg) {
   document.querySelectorAll('.scan-stage').forEach((el, i) => {
     el.classList.toggle('stage-active', i === idx);
     el.classList.toggle('stage-done', i < idx);
@@ -400,7 +399,7 @@ QSR._setStage = function(idx, pct, msg) {
 };
 
 /* ── Compare toggle ──────────────────────────────────────────── */
-QSR._toggleCompare = function() {
+QSR._toggleCompare = function () {
   var single = document.getElementById('single-scan-row');
   var compare = document.getElementById('compare-scan-row');
   var btn = document.getElementById('btn-compare-toggle');
@@ -423,7 +422,7 @@ QSR._toggleCompare = function() {
    ═══════════════════════════════════════════════════════════════ */
 
 /* ── URL Validator ───────────────────────────────────────────── */
-QSR._validateHost = function(host) {
+QSR._validateHost = function (host) {
   if (!host || host.length < 3) return 'Please enter a valid URL, e.g. github.com';
   if (host.length > 253) return 'URL is too long. Enter a valid domain name.';
   /* Must contain at least one dot */
@@ -438,7 +437,7 @@ QSR._validateHost = function(host) {
 
 /* ── Host Reachability Check ────────────────────────────────────── */
 /* Returns { reachable: bool, detail: string }                         */
-QSR._checkHostReachable = async function(host) {
+QSR._checkHostReachable = async function (host) {
   /* --- Strategy 1: DNS-A record. NXDOMAIN = dead domain --- */
   try {
     var dnsCheck = await fetch(
@@ -449,15 +448,15 @@ QSR._checkHostReachable = async function(host) {
       var dj = await dnsCheck.json();
       if (dj.Status === 3) return { reachable: false, detail: 'Domain does not exist (NXDOMAIN) — no DNS record found' };
       if (dj.Status === 2) return { reachable: false, detail: 'DNS server failure (SERVFAIL) — domain may be misconfigured' };
-      var aRecs = (dj.Answer || []).filter(function(a){ return a.type === 1; });
+      var aRecs = (dj.Answer || []).filter(function (a) { return a.type === 1; });
       if (!aRecs.length) return { reachable: false, detail: 'No A records found — domain resolves but has no IPv4 endpoint' };
     }
-  } catch(e) { /* DNS fetch timed out, continue */ }
+  } catch (e) { /* DNS fetch timed out, continue */ }
 
   /* --- Strategy 2: CORS proxy HTTP probe. Server must respond --- */
   var proxies = [
     'https://api.allorigins.win/get?url=' + encodeURIComponent('https://' + host + '/'),
-    'https://corsproxy.io/?url='           + encodeURIComponent('https://' + host + '/')
+    'https://corsproxy.io/?url=' + encodeURIComponent('https://' + host + '/')
   ];
   for (var i = 0; i < proxies.length; i++) {
     try {
@@ -468,30 +467,30 @@ QSR._checkHostReachable = async function(host) {
         if (code === 0 || code === null) continue;  /* proxy itself couldn't connect */
         return { reachable: true, detail: 'HTTP ' + code + ' — server is responding' };
       }
-    } catch(e2) { /* try next */ }
+    } catch (e2) { /* try next */ }
   }
 
   /* --- Strategy 3: Image/resource timing probe (last resort) --- */
   try {
     var probeUrl = 'https://' + host + '/favicon.ico?_qsr=' + Date.now();
     var img = new Image();
-    var imgRes = await new Promise(function(resolve) {
-      img.onload  = function() { resolve('loaded'); };
-      img.onerror = function() { resolve('error-response'); }; /* error = server DID respond */
+    var imgRes = await new Promise(function (resolve) {
+      img.onload = function () { resolve('loaded'); };
+      img.onerror = function () { resolve('error-response'); }; /* error = server DID respond */
       img.src = probeUrl;
-      setTimeout(function() { resolve('timeout'); }, 6000);
+      setTimeout(function () { resolve('timeout'); }, 6000);
     });
     if (imgRes !== 'timeout') {
       return { reachable: true, detail: 'Server acknowledged connection (' + imgRes + ')' };
     }
-  } catch(e3) { /* ignore */ }
+  } catch (e3) { /* ignore */ }
 
   /* All probes failed */
   return { reachable: false, detail: 'No response from ' + host + ' — server is down, firewalled, or the domain does not exist' };
 };
 
 /* ── "Can't Access" error display ──────────────────────────────── */
-QSR._showHostUnreachable = function(host, detail) {
+QSR._showHostUnreachable = function (host, detail) {
   var prog = document.getElementById('scan-progress');
   if (prog) prog.style.display = 'none';
   var old = document.getElementById('unreachable-panel');
@@ -504,27 +503,27 @@ QSR._showHostUnreachable = function(host, detail) {
     'border:1.5px solid rgba(229,62,62,0.35);animation:fadeIn 0.3s ease;';
   panel.innerHTML =
     '<div style="display:flex;align-items:flex-start;gap:18px;">' +
-      '<div style="font-size:44px;flex-shrink:0;line-height:1;">🚫</div>' +
-      '<div style="flex:1;">' +
-        '<div style="font-family:Rajdhani,sans-serif;font-size:22px;font-weight:800;' +
-             'color:#e53e3e;letter-spacing:1px;margin-bottom:6px;">Cannot Access &mdash; ' +
-             QSR._sanitize(host) + '</div>' +
-        '<div style="font-size:13px;color:#c53030;margin-bottom:16px;line-height:1.7;">' +
-             QSR._sanitize(detail) + '</div>' +
-        '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">' +
-          '<span style="font-size:12px;padding:5px 12px;border-radius:8px;background:rgba(229,62,62,0.08);' +
-               'border:1px solid rgba(229,62,62,0.2);color:#c53030;">❌ DNS probe failed</span>' +
-          '<span style="font-size:12px;padding:5px 12px;border-radius:8px;background:rgba(229,62,62,0.08);' +
-               'border:1px solid rgba(229,62,62,0.2);color:#c53030;">❌ HTTP probes timed out</span>' +
-          '<span style="font-size:12px;padding:5px 12px;border-radius:8px;background:rgba(229,62,62,0.08);' +
-               'border:1px solid rgba(229,62,62,0.2);color:#c53030;">❌ Resource timing — no response</span>' +
-        '</div>' +
-        '<div style="padding:10px 14px;border-radius:8px;border-left:3px solid #ed8936;' +
-             'background:rgba(237,137,54,0.06);font-size:12px;color:#4a4a6a;line-height:1.6;">' +
-          '<strong>Scan aborted — no results will be shown.</strong> Displaying data for an unreachable host ' +
-          'would be inaccurate and misleading. Verify the domain is correct and publicly accessible.' +
-        '</div>' +
-      '</div>' +
+    '<div style="font-size:44px;flex-shrink:0;line-height:1;">🚫</div>' +
+    '<div style="flex:1;">' +
+    '<div style="font-family:Rajdhani,sans-serif;font-size:22px;font-weight:800;' +
+    'color:#e53e3e;letter-spacing:1px;margin-bottom:6px;">Cannot Access &mdash; ' +
+    QSR._sanitize(host) + '</div>' +
+    '<div style="font-size:13px;color:#c53030;margin-bottom:16px;line-height:1.7;">' +
+    QSR._sanitize(detail) + '</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">' +
+    '<span style="font-size:12px;padding:5px 12px;border-radius:8px;background:rgba(229,62,62,0.08);' +
+    'border:1px solid rgba(229,62,62,0.2);color:#c53030;">❌ DNS probe failed</span>' +
+    '<span style="font-size:12px;padding:5px 12px;border-radius:8px;background:rgba(229,62,62,0.08);' +
+    'border:1px solid rgba(229,62,62,0.2);color:#c53030;">❌ HTTP probes timed out</span>' +
+    '<span style="font-size:12px;padding:5px 12px;border-radius:8px;background:rgba(229,62,62,0.08);' +
+    'border:1px solid rgba(229,62,62,0.2);color:#c53030;">❌ Resource timing — no response</span>' +
+    '</div>' +
+    '<div style="padding:10px 14px;border-radius:8px;border-left:3px solid #ed8936;' +
+    'background:rgba(237,137,54,0.06);font-size:12px;color:#4a4a6a;line-height:1.6;">' +
+    '<strong>Scan aborted — no results will be shown.</strong> Displaying data for an unreachable host ' +
+    'would be inaccurate and misleading. Verify the domain is correct and publicly accessible.' +
+    '</div>' +
+    '</div>' +
     '</div>';
 
   var progressEl = document.getElementById('scan-progress');
@@ -533,14 +532,14 @@ QSR._showHostUnreachable = function(host, detail) {
 };
 
 /* ── Main scan runner ────────────────────────────────────────── */
-QSR.runTLSScan = async function() {
+QSR.runTLSScan = async function () {
   var input = document.getElementById('scan-input');
-  var raw   = (input?.value || '').trim();
-  var host  = raw.replace(/^https?:\/\//,'').replace(/\/.*/,'').replace(/\?.*/,'').toLowerCase();
+  var raw = (input?.value || '').trim();
+  var host = raw.replace(/^https?:\/\//, '').replace(/\/.*/, '').replace(/\?.*/, '').toLowerCase();
 
   /* ── Rate limit check (security) ── */
   if (QSR._rateLimiter && !QSR._rateLimiter.check()) {
-    if (window.showToast) showToast('Rate limit: too many scans. Wait 60s.','warning');
+    if (window.showToast) showToast('Rate limit: too many scans. Wait 60s.', 'warning');
     return;
   }
 
@@ -569,7 +568,7 @@ QSR.runTLSScan = async function() {
   QSR._setStage(0, 5, 'Checking if ' + host + ' is reachable...');
   var _reach;
   try { _reach = await QSR._checkHostReachable(host); }
-  catch(e) { _reach = { reachable: false, detail: 'Probe error: ' + e.message }; }
+  catch (e) { _reach = { reachable: false, detail: 'Probe error: ' + e.message }; }
 
   if (!_reach.reachable) {
     btn.disabled = false; btn.innerHTML = '▶ SCAN';
@@ -593,12 +592,12 @@ QSR.runTLSScan = async function() {
       QSR._fetchHeaders(host)
     ]);
     dnsData.aaaa = (dnsAAAA.ips || []);
-    dnsData.mx   = (dnsMX.ips  || []);
-    dnsData.ns   = (dnsNS.ips  || []);
-    dnsData.caa  = (dnsCAA.ips || []);
-    dnsData.txt  = (dnsTXT.ips || []);
+    dnsData.mx = (dnsMX.ips || []);
+    dnsData.ns = (dnsNS.ips || []);
+    dnsData.caa = (dnsCAA.ips || []);
+    dnsData.txt = (dnsTXT.ips || []);
 
-    QSR._setStage(1, 38, 'Parsing ' + (crtData.count||0) + ' CT log entries from crt.sh...');
+    QSR._setStage(1, 38, 'Parsing ' + (crtData.count || 0) + ' CT log entries from crt.sh...');
     await QSR._delay(200);
 
     QSR._setStage(2, 60, 'Fingerprinting TLS profile from certificate metadata...');
@@ -624,34 +623,34 @@ QSR.runTLSScan = async function() {
     QSR._syncAssetRowFromScan(host, result);
 
     /* ── Innovation renderers ── */
-    if (QSR._renderHNDLTimeline)    QSR._renderHNDLTimeline(result);
-    if (QSR._renderMigrationCost)   QSR._renderMigrationCost(result);
-    if (QSR._renderCertChain)       QSR._renderCertChain(result, crtData.certs || []);
+    if (QSR._renderHNDLTimeline) QSR._renderHNDLTimeline(result);
+    if (QSR._renderMigrationCost) QSR._renderMigrationCost(result);
+    if (QSR._renderCertChain) QSR._renderCertChain(result, crtData.certs || []);
     if (QSR._parseDNSSecurity) {
-      var dnsIntel = QSR._parseDNSSecurity(host, dnsData.caa||[], dnsData.txt||[]);
+      var dnsIntel = QSR._parseDNSSecurity(host, dnsData.caa || [], dnsData.txt || []);
       result.dnsIntel = dnsIntel;
       QSR._renderDNSIntelligence(dnsIntel, dnsData);
     }
-    if (QSR._renderNISTCompliance)  QSR._renderNISTCompliance(result);
+    if (QSR._renderNISTCompliance) QSR._renderNISTCompliance(result);
 
     /* ── V2 Innovation renderers ── */
-    if (QSR._renderInsuranceCalc)   QSR._renderInsuranceCalc(result);
-    if (QSR._renderCryptoDNA)       QSR._renderCryptoDNA(result);
-    if (QSR._renderQuantumTracker)  QSR._renderQuantumTracker(result);
-    if (QSR._renderShadowIT)        QSR._renderShadowIT(result, crtData.certs || []);
-    if (QSR._renderHandshakeSim)    QSR._renderHandshakeSim(result);
-    if (QSR._renderSunsetCalendar)  QSR._renderSunsetCalendar(result);
-    if (QSR._renderCryptoDebt)      QSR._renderCryptoDebt(result);
-    if (QSR._renderRBICompliance)   QSR._renderRBICompliance(result);
-    if (QSR._renderDefenseRings)    QSR._renderDefenseRings(result);
-    if (QSR._renderPredictiveAI)    QSR._renderPredictiveAI(result);
+    if (QSR._renderInsuranceCalc) QSR._renderInsuranceCalc(result);
+    if (QSR._renderCryptoDNA) QSR._renderCryptoDNA(result);
+    if (QSR._renderQuantumTracker) QSR._renderQuantumTracker(result);
+    if (QSR._renderShadowIT) QSR._renderShadowIT(result, crtData.certs || []);
+    if (QSR._renderHandshakeSim) QSR._renderHandshakeSim(result);
+    if (QSR._renderSunsetCalendar) QSR._renderSunsetCalendar(result);
+    if (QSR._renderCryptoDebt) QSR._renderCryptoDebt(result);
+    if (QSR._renderRBICompliance) QSR._renderRBICompliance(result);
+    if (QSR._renderDefenseRings) QSR._renderDefenseRings(result);
+    if (QSR._renderPredictiveAI) QSR._renderPredictiveAI(result);
 
     /* ── Scan diff: compare with previous scan of same host ── */
     if (window.QSR_DataLayer && QSR_DataLayer.fetchLastScanForHost) {
       try {
         var prev = await QSR_DataLayer.fetchLastScanForHost(host);
         if (prev && QSR._renderScanDiff) QSR._renderScanDiff(result, prev);
-      } catch(e) {}
+      } catch (e) { }
     }
 
     /* Zero Trust assessment */
@@ -664,17 +663,24 @@ QSR.runTLSScan = async function() {
     if (window.QSR_DataLayer) {
       try {
         await QSR_DataLayer.saveScanResult(host, result);
-        if (window.showToast) showToast('✓ Scan saved to your history', 'success');
-      } catch(e) {}
-      try { await QSR_DataLayer.logScanEvent(host); } catch(e) {}
+      } catch (e) { }
+      try {
+        var syncResult = await QSR_DataLayer.syncScanArtifacts(host, result);
+        if (syncResult && syncResult.ok) {
+          if (window.showToast) showToast('Scan synced across assets, PQC, CBOM and cyber rating', 'success');
+        } else if (window.showToast) {
+          showToast('Scan history saved, but backend sync was partial.', 'warning');
+        }
+      } catch (e) { }
+      try { await QSR_DataLayer.logScanEvent(host); } catch (e) { }
     }
 
-  } catch(e) {
+  } catch (e) {
     QSR._setStage(0, 0, '✕ ' + e.message);
     if (window.showToast) showToast('Scan failed: ' + e.message, 'error');
   } finally {
     btn.disabled = false; btn.innerHTML = '▶ SCAN';
-    setTimeout(() => { var p=document.getElementById('scan-progress'); if(p) p.style.display='none'; }, 2500);
+    setTimeout(() => { var p = document.getElementById('scan-progress'); if (p) p.style.display = 'none'; }, 2500);
     QSR._renderScanHistory();
     QSR._loadDBHistory(); /* refresh DB history panel */
   }
@@ -684,10 +690,10 @@ QSR.runTLSScan = async function() {
 window._qsrCache = window._qsrCache || {};
 
 /* type: 'A' | 'AAAA' | 'MX' | 'NS' | 'TXT' | 'CAA' */
-QSR._fetchDNS = async function(host, type) {
+QSR._fetchDNS = async function (host, type) {
   type = type || 'A';
   var cacheKey = 'dns_' + type + '_' + host;
-  var typeMap = { A:1, AAAA:28, MX:15, NS:2, TXT:16, CAA:257 };
+  var typeMap = { A: 1, AAAA: 28, MX: 15, NS: 2, TXT: 16, CAA: 257 };
   var typeCode = typeMap[type] || 1;
   try {
     var r = await fetch(
@@ -699,21 +705,21 @@ QSR._fetchDNS = async function(host, type) {
     var answers = (j.Answer || []).filter(a => a.type === typeCode);
     /* Normalize data field per record type */
     var ips = answers.map(a => {
-      if (type === 'MX') return (a.data || '').replace(/^\d+\s+/,'').replace(/\.$/,'');
-      if (type === 'NS') return (a.data || '').replace(/\.$/,'');
+      if (type === 'MX') return (a.data || '').replace(/^\d+\s+/, '').replace(/\.$/, '');
+      if (type === 'NS') return (a.data || '').replace(/\.$/, '');
       return a.data || '';
     }).filter(Boolean);
     var res = {
-      ok:    j.Status === 0,
-      ip:    ips[0] || null,
-      ips:   ips,
-      ttl:   answers[0]?.TTL || null,
+      ok: j.Status === 0,
+      ip: ips[0] || null,
+      ips: ips,
+      ttl: answers[0]?.TTL || null,
       rcode: j.Status,
       type
     };
     window._qsrCache[cacheKey] = res;
     return res;
-  } catch(e) {
+  } catch (e) {
     if (window._qsrCache[cacheKey]) return window._qsrCache[cacheKey];
     console.warn('[DNS ' + type + ']', e.message);
     return { ok: false, ip: null, ips: [], ttl: null, type };
@@ -721,7 +727,7 @@ QSR._fetchDNS = async function(host, type) {
 };
 
 /* ── Source 2: crt.sh Certificate Transparency logs ─────────── */
-QSR._fetchCRT = async function(host) {
+QSR._fetchCRT = async function (host) {
   var cacheKey = 'crt_' + host;
   try {
     var r = await fetch(`https://crt.sh/?q=${encodeURIComponent(host)}&output=json`,
@@ -739,7 +745,7 @@ QSR._fetchCRT = async function(host) {
     var res = { certs: unique, count: unique.length, raw: arr.length };
     window._qsrCache[cacheKey] = res;
     return res;
-  } catch(e) {
+  } catch (e) {
     if (window._qsrCache[cacheKey]) return window._qsrCache[cacheKey];
     console.warn('[CRT]', e.message);
     return { certs: [], count: 0, raw: 0 };
@@ -747,7 +753,7 @@ QSR._fetchCRT = async function(host) {
 };
 
 /* ── Source 3: Live HTTP headers via CORS proxy ──────────────── */
-QSR._fetchHeaders = async function(host) {
+QSR._fetchHeaders = async function (host) {
   var cacheKey = 'hdrs_' + host;
   var proxies = [
     'https://api.allorigins.win/get?url=' + encodeURIComponent('https://' + host + '/'),
@@ -757,37 +763,113 @@ QSR._fetchHeaders = async function(host) {
     try {
       var r = await fetch(proxy, { signal: AbortSignal.timeout(8000) });
       if (!r.ok) continue;
-      var j = await r.json();
-      /* allorigins returns {contents, status:{http_code, content_type}} */
-      var hdrs   = {};
-      var status = j.status?.http_code || j.status_code || 200;
-      var ct     = j.status?.content_type || j.content_type || '';
-      /* Parse headers embedded in body if available */
-      var raw = j.headers || j.head || '';
-      if (typeof raw === 'object') {
-        Object.entries(raw).forEach(([k,v]) => { hdrs[k.toLowerCase()] = v; });
-      } else if (typeof raw === 'string') {
-        raw.split('\n').forEach(line => {
-          var m = line.match(/^([^:]+):\s*(.+)$/);
-          if (m) hdrs[m[1].toLowerCase().trim()] = m[2].trim();
-        });
+
+      var rawText = await r.text();
+      var parsed = null;
+      var hdrs = {};
+      var body = '';
+      var status = r.status || 200;
+      var ct = r.headers.get('content-type') || '';
+
+      if (ct.indexOf('application/json') !== -1 || rawText.trim().charAt(0) === '{') {
+        try { parsed = JSON.parse(rawText); } catch (e) { }
       }
-      /* allorigins also includes content-type in status */
+
+      if (parsed) {
+        status = (parsed.status && parsed.status.http_code) || parsed.status_code || status;
+        ct = (parsed.status && parsed.status.content_type) || parsed.content_type || ct;
+        body = parsed.contents || parsed.body || parsed.html || '';
+        var rawHeaders = parsed.headers || parsed.head || '';
+        if (typeof rawHeaders === 'object' && rawHeaders) {
+          Object.keys(rawHeaders).forEach(function (k) {
+            hdrs[String(k).toLowerCase()] = rawHeaders[k];
+          });
+        } else if (typeof rawHeaders === 'string') {
+          rawHeaders.split('\n').forEach(function (line) {
+            var m = line.match(/^([^:]+):\s*(.+)$/);
+            if (m) hdrs[m[1].toLowerCase().trim()] = m[2].trim();
+          });
+        }
+      } else {
+        body = rawText || '';
+      }
+
       if (ct) hdrs['content-type'] = ct;
-      var res = { ok: true, status, headers: hdrs, proxy: proxy.split('?')[0] };
+
+      var titleMatch = body.match(/<title[^>]*>([^<]+)<\/title>/i);
+      var title = titleMatch ? titleMatch[1].trim() : '';
+      var res = {
+        ok: true,
+        status: status,
+        headers: hdrs,
+        body: body,
+        title: title,
+        proxy: proxy.split('?')[0],
+        techFingerprint: QSR._parseWhatWebStyleFingerprint(host, hdrs, body, title)
+      };
       window._qsrCache[cacheKey] = res;
       return res;
-    } catch(e) { console.warn('[HEADERS proxy]', e.message); }
+    } catch (e) {
+      console.warn('[HEADERS proxy]', e.message);
+    }
   }
   if (window._qsrCache[cacheKey]) return window._qsrCache[cacheKey];
-  return { ok: false, status: null, headers: {}, proxy: null };
+  return { ok: false, status: null, headers: {}, body: '', title: '', proxy: null, techFingerprint: null };
+};
+
+QSR._parseWhatWebStyleFingerprint = function (host, headers, body, title) {
+  headers = headers || {};
+  body = body || '';
+  title = title || '';
+
+  var findings = [];
+  function add(name, category, confidence, evidence) {
+    if (findings.some(function (item) { return item.name === name; })) return;
+    findings.push({ name: name, category: category, confidence: confidence, evidence: evidence });
+  }
+
+  var server = String(headers.server || headers['x-powered-by'] || '').toLowerCase();
+  var generator = String(headers['x-generator'] || '').toLowerCase();
+  var lowerBody = body.toLowerCase();
+
+  if (server.indexOf('cloudflare') !== -1 || headers['cf-ray']) add('Cloudflare', 'CDN/WAF', 0.95, 'server/cf-ray header');
+  if (server.indexOf('akamai') !== -1) add('Akamai', 'CDN/WAF', 0.9, 'server header');
+  if (server.indexOf('fastly') !== -1 || (headers.via && String(headers.via).toLowerCase().indexOf('fastly') !== -1)) add('Fastly', 'CDN/WAF', 0.9, 'server/via header');
+  if (server.indexOf('nginx') !== -1) add('nginx', 'Web Server', 0.9, 'server header');
+  if (server.indexOf('apache') !== -1) add('Apache HTTP Server', 'Web Server', 0.9, 'server header');
+  if (server.indexOf('iis') !== -1) add('Microsoft IIS', 'Web Server', 0.9, 'server header');
+  if (server.indexOf('envoy') !== -1) add('Envoy', 'Proxy', 0.85, 'server header');
+
+  if (generator.indexOf('wordpress') !== -1 || lowerBody.indexOf('/wp-content/') !== -1) add('WordPress', 'CMS', 0.95, 'generator/body');
+  if (generator.indexOf('drupal') !== -1 || lowerBody.indexOf('drupal-settings-json') !== -1) add('Drupal', 'CMS', 0.92, 'generator/body');
+  if (generator.indexOf('joomla') !== -1 || lowerBody.indexOf('joomla') !== -1) add('Joomla', 'CMS', 0.8, 'generator/body');
+  if (lowerBody.indexOf('__next') !== -1 || lowerBody.indexOf('/_next/') !== -1) add('Next.js', 'Framework', 0.95, 'body markers');
+  if (lowerBody.indexOf('data-reactroot') !== -1 || (lowerBody.indexOf('react') !== -1 && lowerBody.indexOf('__next') === -1)) add('React', 'Framework', 0.72, 'body markers');
+  if (lowerBody.indexOf('ng-version') !== -1) add('Angular', 'Framework', 0.9, 'body markers');
+  if (lowerBody.indexOf('__nuxt') !== -1) add('Nuxt', 'Framework', 0.92, 'body markers');
+  if (lowerBody.indexOf('vue') !== -1 && lowerBody.indexOf('__nuxt') === -1) add('Vue.js', 'Framework', 0.7, 'body markers');
+  if (lowerBody.indexOf('bootstrap') !== -1) add('Bootstrap', 'UI Library', 0.8, 'body markers');
+  if (lowerBody.indexOf('jquery') !== -1) add('jQuery', 'JavaScript Library', 0.78, 'body markers');
+  if (server.indexOf('asp.net') !== -1 || lowerBody.indexOf('__viewstate') !== -1) add('ASP.NET', 'Framework', 0.9, 'server/body');
+  if (headers['x-powered-by'] && String(headers['x-powered-by']).toLowerCase().indexOf('php') !== -1) add('PHP', 'Runtime', 0.9, 'x-powered-by header');
+  if (headers['x-powered-by'] && String(headers['x-powered-by']).toLowerCase().indexOf('express') !== -1) add('Express', 'Framework', 0.85, 'x-powered-by header');
+
+  var confidence = findings.length
+    ? Math.round(findings.reduce(function (sum, item) { return sum + item.confidence; }, 0) / findings.length * 100)
+    : 0;
+
+  return {
+    title: title || host,
+    findings: findings.sort(function (a, b) { return b.confidence - a.confidence; }),
+    confidence: confidence
+  };
 };
 
 /* ── Compare two domains ─────────────────────────────────────── */
-QSR.runCompare = async function() {
-  var hostA = (document.getElementById('scan-input-a')?.value || '').trim().replace(/^https?:\/\//,'').replace(/\/.*/,'');
-  var hostB = (document.getElementById('scan-input-b')?.value || '').trim().replace(/^https?:\/\//,'').replace(/\/.*/,'');
-  if (!hostA || !hostB) { if(window.showToast) showToast('Enter both domains.','warning'); return; }
+QSR.runCompare = async function () {
+  var hostA = (document.getElementById('scan-input-a')?.value || '').trim().replace(/^https?:\/\//, '').replace(/\/.*/, '');
+  var hostB = (document.getElementById('scan-input-b')?.value || '').trim().replace(/^https?:\/\//, '').replace(/\/.*/, '');
+  if (!hostA || !hostB) { if (window.showToast) showToast('Enter both domains.', 'warning'); return; }
 
   document.getElementById('scan-progress').style.display = 'block';
   document.getElementById('scan-results').style.display = 'none';
@@ -803,14 +885,14 @@ QSR.runCompare = async function() {
     document.getElementById('compare-results').style.display = 'block';
     document.getElementById('compare-results').innerHTML = QSR._renderCompare(rA, rB);
     document.getElementById('scan-progress').style.display = 'none';
-  } catch(e) {
+  } catch (e) {
     QSR._setStage(0, 0, '✕ Compare failed: ' + e.message);
   }
 };
 
 /* ── Source 4: OUR OWN TLS Scanner (Supabase Edge Function) ───── */
 /* Performs a REAL TLS handshake server-side via Deno.connectTls() */
-QSR._fetchTLSProbe = async function(host) {
+QSR._fetchTLSProbe = async function (host) {
   var cacheKey = 'tls_' + host;
   var SCANNER_URL = SUPABASE_URL + '/functions/v1/tls-scanner';
   try {
@@ -846,7 +928,7 @@ QSR._fetchTLSProbe = async function(host) {
     };
     window._qsrCache[cacheKey] = res;
     return res;
-  } catch(e) {
+  } catch (e) {
     if (window._qsrCache[cacheKey]) return window._qsrCache[cacheKey];
     console.warn('[TLS Scanner]', e.message);
     /* Fallback: Performance API protocol detection */
@@ -854,7 +936,7 @@ QSR._fetchTLSProbe = async function(host) {
       var testUrl = 'https://' + host + '/favicon.ico?_qsr=' + Date.now();
       var img = new Image();
       img.src = testUrl;
-      await new Promise(function(resolve) { img.onload = img.onerror = resolve; setTimeout(resolve, 3000); });
+      await new Promise(function (resolve) { img.onload = img.onerror = resolve; setTimeout(resolve, 3000); });
       var entries = performance.getEntriesByName(testUrl);
       if (entries.length && entries[0].nextHopProtocol) {
         var protocol = entries[0].nextHopProtocol;
@@ -868,12 +950,12 @@ QSR._fetchTLSProbe = async function(host) {
         window._qsrCache[cacheKey] = fbRes;
         return fbRes;
       }
-    } catch(e2) { /* silent */ }
+    } catch (e2) { /* silent */ }
     return { ok: false };
   }
 };
 
-QSR._fetchOneScan = async function(host) {
+QSR._fetchOneScan = async function (host) {
   var [dnsData, crtData, headerData, tlsProbeData] = await Promise.allSettled([
     QSR._fetchDNS(host),
     QSR._fetchCRT(host),
@@ -881,24 +963,24 @@ QSR._fetchOneScan = async function(host) {
     QSR._fetchTLSProbe(host)
   ]);
   /* Extract values from settled promises */
-  dnsData = dnsData.status === 'fulfilled' ? dnsData.value : { ok:false, ip:null, ips:[] };
-  crtData = crtData.status === 'fulfilled' ? crtData.value : { certs:[], count:0 };
-  headerData = headerData.status === 'fulfilled' ? headerData.value : { ok:false, headers:{} };
-  tlsProbeData = tlsProbeData.status === 'fulfilled' ? tlsProbeData.value : { ok:false };
+  dnsData = dnsData.status === 'fulfilled' ? dnsData.value : { ok: false, ip: null, ips: [] };
+  crtData = crtData.status === 'fulfilled' ? crtData.value : { certs: [], count: 0 };
+  headerData = headerData.status === 'fulfilled' ? headerData.value : { ok: false, headers: {} };
+  tlsProbeData = tlsProbeData.status === 'fulfilled' ? tlsProbeData.value : { ok: false };
   return QSR._buildScanResult(host, dnsData, crtData, headerData, tlsProbeData);
 };
 
 
-QSR._renderCompare = function(a, b) {
+QSR._renderCompare = function (a, b) {
   function col(val, good) { return good ? '#48bb78' : '#e53e3e'; }
   function scoreCol(s) { return s >= 70 ? '#48bb78' : s >= 40 ? '#ed8936' : '#e53e3e'; }
   var rows = [
     ['SSL Grade', a.grade, b.grade, a.grade <= 'B', b.grade <= 'B'],
-    ['TLS Version', 'TLS '+a.tlsVersion, 'TLS '+b.tlsVersion, a.tlsVersion >= '1.3', b.tlsVersion >= '1.3'],
-    ['Key Algorithm', a.keyAlg+'-'+a.keySize, b.keyAlg+'-'+b.keySize, a.keySize >= 4096, b.keySize >= 4096],
-    ['Forward Secrecy', a.ciphers.some(c=>c.forward)?'✓ Yes':'✗ No', b.ciphers.some(c=>c.forward)?'✓ Yes':'✗ No', a.ciphers.some(c=>c.forward), b.ciphers.some(c=>c.forward)],
-    ['PQC Ciphers', a.ciphers.some(c=>c.quantum)?'✓ Found':'✗ None', b.ciphers.some(c=>c.quantum)?'✓ Found':'✗ None', a.ciphers.some(c=>c.quantum), b.ciphers.some(c=>c.quantum)],
-    ['CT Certs Found', a.crtCount+' certs', b.crtCount+' certs', true, true]
+    ['TLS Version', 'TLS ' + a.tlsVersion, 'TLS ' + b.tlsVersion, a.tlsVersion >= '1.3', b.tlsVersion >= '1.3'],
+    ['Key Algorithm', a.keyAlg + '-' + a.keySize, b.keyAlg + '-' + b.keySize, a.keySize >= 4096, b.keySize >= 4096],
+    ['Forward Secrecy', a.ciphers.some(c => c.forward) ? '✓ Yes' : '✗ No', b.ciphers.some(c => c.forward) ? '✓ Yes' : '✗ No', a.ciphers.some(c => c.forward), b.ciphers.some(c => c.forward)],
+    ['PQC Ciphers', a.ciphers.some(c => c.quantum) ? '✓ Found' : '✗ None', b.ciphers.some(c => c.quantum) ? '✓ Found' : '✗ None', a.ciphers.some(c => c.quantum), b.ciphers.some(c => c.quantum)],
+    ['CT Certs Found', a.crtCount + ' certs', b.crtCount + ' certs', true, true]
   ];
   return `<div class="panel"><div class="panel-title">⇄ Side-by-Side Comparison</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;margin-bottom:14px;">
@@ -911,8 +993,8 @@ QSR._renderCompare = function(a, b) {
     <table class="data-table"><thead><tr><th>Factor</th><th style="text-align:center;">${a.host}</th><th style="text-align:center;">${b.host}</th></tr></thead><tbody>
     ${rows.map(r => `<tr>
       <td style="font-weight:600;">${r[0]}</td>
-      <td style="text-align:center;color:${col(r[1],r[3])};font-weight:700;">${r[1]}</td>
-      <td style="text-align:center;color:${col(r[2],r[4])};font-weight:700;">${r[2]}</td>
+      <td style="text-align:center;color:${col(r[1], r[3])};font-weight:700;">${r[1]}</td>
+      <td style="text-align:center;color:${col(r[2], r[4])};font-weight:700;">${r[2]}</td>
     </tr>`).join('')}
     </tbody></table>
     <div style="margin-top:12px;padding:10px 14px;background:rgba(66,153,225,0.08);border-radius:8px;border-left:3px solid #4299e1;font-size:13px;color:#4a4a6a;">
@@ -924,48 +1006,49 @@ QSR._renderCompare = function(a, b) {
 /* ── Build scan result ───────────────────────────────────────── */
 /* Accepts: host (str), dnsData (from _fetchDNS), crtData (from _fetchCRT),
             headerData (from _fetchHeaders) — NO SSL Labs dependency         */
-QSR._buildScanResult = function(host, dnsData, crtData, headerData, tlsProbeData) {
+QSR._buildScanResult = function (host, dnsData, crtData, headerData, tlsProbeData) {
 
   /* ── 1. Parse real crt.sh CT log data ───────────────────── */
-  var certs    = (crtData && crtData.certs) ? crtData.certs : [];
+  var certs = (crtData && crtData.certs) ? crtData.certs : [];
   var crtCount = (crtData && crtData.count) ? crtData.count : 0;
   /* Most recent cert (newest not_after) */
   var cert0 = certs[0] || null;
 
-  var crtIssuer    = cert0?.issuer_name || null;
-  var crtNotBefore = cert0?.not_before  || null;
-  var crtNotAfter  = cert0?.not_after   || null;
-  var crtSubject   = cert0?.name_value  || null;
+  var crtIssuer = cert0?.issuer_name || null;
+  var crtNotBefore = cert0?.not_before || null;
+  var crtNotAfter = cert0?.not_after || null;
+  var crtSubject = cert0?.name_value || null;
   /* Extract REAL key algorithm from crt.sh cert entry (when available) */
-  var crtKeyType   = cert0?.key_type    || null;   /* e.g. 'RSA', 'ECDSA' */
-  var crtKeySize   = cert0?.key_size    || null;   /* e.g. 2048, 256 */
-  var crtSigAlg    = cert0?.signature_algorithm || null;
+  var crtKeyType = cert0?.key_type || null;   /* e.g. 'RSA', 'ECDSA' */
+  var crtKeySize = cert0?.key_size || null;   /* e.g. 2048, 256 */
+  var crtSigAlg = cert0?.signature_algorithm || null;
 
-  var notBeforeMs = crtNotBefore ? new Date(crtNotBefore).getTime() : Date.now() - 90*86400000;
-  var notAfterMs  = crtNotAfter  ? new Date(crtNotAfter).getTime()  : Date.now() + 180*86400000;
-  var notBefore   = new Date(notBeforeMs).toLocaleDateString('en-IN');
-  var notAfter    = new Date(notAfterMs).toLocaleDateString('en-IN');
-  var daysLeft    = Math.floor((notAfterMs - Date.now()) / 86400000);
+  var notBeforeMs = crtNotBefore ? new Date(crtNotBefore).getTime() : Date.now() - 90 * 86400000;
+  var notAfterMs = crtNotAfter ? new Date(crtNotAfter).getTime() : Date.now() + 180 * 86400000;
+  var notBefore = new Date(notBeforeMs).toLocaleDateString('en-IN');
+  var notAfter = new Date(notAfterMs).toLocaleDateString('en-IN');
+  var daysLeft = Math.floor((notAfterMs - Date.now()) / 86400000);
 
-  var issuer  = crtIssuer || 'Unknown CA';
+  var issuer = crtIssuer || 'Unknown CA';
   var subject = crtSubject ? 'CN=' + crtSubject : 'CN=' + host;
 
   /* ── 2. Real data from live HTTP headers ─────────────────── */
-  var hdrs   = (headerData && headerData.headers) ? headerData.headers : {};
+  var hdrs = (headerData && headerData.headers) ? headerData.headers : {};
+  var techFingerprint = (headerData && headerData.techFingerprint) ? headerData.techFingerprint : { findings: [], confidence: 0, title: host };
   var server = hdrs['server'] || hdrs['x-powered-by'] || null;
-  var hsts   = hdrs['strict-transport-security'] || null;
-  var csp    = hdrs['content-security-policy'];
+  var hsts = hdrs['strict-transport-security'] || null;
+  var csp = hdrs['content-security-policy'];
   var xframe = hdrs['x-frame-options'];
-  var xct    = hdrs['x-content-type-options'];
-  var refp   = hdrs['referrer-policy'];
+  var xct = hdrs['x-content-type-options'];
+  var refp = hdrs['referrer-policy'];
   var altSvc = hdrs['alt-svc'] || '';
   /* Build security header score (real, per-domain) */
   var secHeaders = [
-    { name:'Strict-Transport-Security',  val: hsts,   ok: !!hsts  },
-    { name:'Content-Security-Policy',    val: csp,    ok: !!csp   },
-    { name:'X-Frame-Options',            val: xframe, ok: !!xframe },
-    { name:'X-Content-Type-Options',     val: xct,    ok: !!xct   },
-    { name:'Referrer-Policy',            val: refp,   ok: !!refp  }
+    { name: 'Strict-Transport-Security', val: hsts, ok: !!hsts },
+    { name: 'Content-Security-Policy', val: csp, ok: !!csp },
+    { name: 'X-Frame-Options', val: xframe, ok: !!xframe },
+    { name: 'X-Content-Type-Options', val: xct, ok: !!xct },
+    { name: 'Referrer-Policy', val: refp, ok: !!refp }
   ];
   var secScore = secHeaders.filter(h => h.ok).length; /* 0–5 */
 
@@ -977,7 +1060,7 @@ QSR._buildScanResult = function(host, dnsData, crtData, headerData, tlsProbeData
   }
 
   /* ── 3. Real IP from DNS-over-HTTPS ─────────────────────── */
-  var resolvedIp  = (dnsData && dnsData.ip)  ? dnsData.ip  : null;
+  var resolvedIp = (dnsData && dnsData.ip) ? dnsData.ip : null;
   var resolvedIps = (dnsData && dnsData.ips) ? dnsData.ips : [];
 
   /* ── 4. Infer TLS/cipher profile from real CA + all live evidence ─ */
@@ -1034,28 +1117,52 @@ QSR._buildScanResult = function(host, dnsData, crtData, headerData, tlsProbeData
   }
 
   var tlsVersion = profile.tls;
-  var keyAlg     = profile.keyAlg;
-  var keySize    = profile.keySize;
-  var sigAlg     = profile.sigAlg;
-  var grade      = profile.grade;
-  var ciphers    = profile.ciphers;
+  var keyAlg = profile.keyAlg;
+  var keySize = profile.keySize;
+  var sigAlg = profile.sigAlg;
+  var grade = profile.grade;
+  var ciphers = profile.ciphers;
 
   /* ── 5. Quantum scoring (enhanced 15-factor) ────────────── */
   var hasCAARecords = dnsData.caa && dnsData.caa.length > 0;
-  var qVulnerable = keySize < 4096 || tlsVersion < '1.3' || ciphers.some(c => c.name.includes('RSA_WITH'));
-  var qScore = QSR._calcQuantumScore(keyAlg, keySize, tlsVersion, ciphers, secScore, daysLeft, hasCAARecords, hstsMaxAge, crtCount);
+  var qScore = QSR._calcQuantumScore(
+    keyAlg,
+    keySize,
+    tlsVersion,
+    ciphers,
+    secScore,
+    daysLeft,
+    hasCAARecords,
+    hstsMaxAge,
+    crtCount,
+    tlsProbeData && tlsProbeData.ok,
+    techFingerprint
+  );
+  var qVulnerable = qScore < 51;
+  var pqcBucket = qScore >= 76 ? 'Elite-PQC' : qScore >= 51 ? 'Standard' : qScore >= 26 ? 'Legacy' : 'Critical';
+  var scanConfidence = 0;
+  if (resolvedIp) scanConfidence += 20;
+  if (crtCount > 0) scanConfidence += 20;
+  if (headerData && headerData.ok) scanConfidence += 15;
+  if (tlsProbeData && tlsProbeData.ok) scanConfidence += 30;
+  if (techFingerprint && techFingerprint.findings && techFingerprint.findings.length) scanConfidence += 10;
+  if (ciphers && ciphers.length) scanConfidence += 5;
+  scanConfidence = Math.max(0, Math.min(100, scanConfidence));
 
   /* ── 6. Data source info ─────────────────────────────────── */
   var sources = [];
-  if (resolvedIp)                  sources.push('DNS-over-HTTPS (A)');
+  if (resolvedIp) sources.push('DNS-over-HTTPS (A)');
   if (dnsData.aaaa && dnsData.aaaa.length) sources.push('IPv6 (AAAA)');
-  if (dnsData.mx   && dnsData.mx.length)   sources.push('MX records');
-  if (dnsData.ns   && dnsData.ns.length)   sources.push('NS records');
-  if (dnsData.caa  && dnsData.caa.length)  sources.push('CAA records');
-  if (dnsData.txt  && dnsData.txt.length)  sources.push('TXT/DMARC');
-  if (crtCount > 0)                sources.push('crt.sh CT logs (' + crtCount + ' certs)');
+  if (dnsData.mx && dnsData.mx.length) sources.push('MX records');
+  if (dnsData.ns && dnsData.ns.length) sources.push('NS records');
+  if (dnsData.caa && dnsData.caa.length) sources.push('CAA records');
+  if (dnsData.txt && dnsData.txt.length) sources.push('TXT/DMARC');
+  if (crtCount > 0) sources.push('crt.sh CT logs (' + crtCount + ' certs)');
   if (headerData && headerData.ok) sources.push('live HTTP headers');
   if (tlsProbeData && tlsProbeData.ok) sources.push('TLS probe (real cipher)');
+  if (techFingerprint && techFingerprint.findings && techFingerprint.findings.length) {
+    sources.push('tech fingerprint (' + techFingerprint.findings.slice(0, 3).map(function (item) { return item.name; }).join(', ') + ')');
+  }
   if (crtKeyType) sources.push('cert key: ' + crtKeyType + (crtKeySize ? '-' + crtKeySize : ''));
 
   return {
@@ -1063,7 +1170,7 @@ QSR._buildScanResult = function(host, dnsData, crtData, headerData, tlsProbeData
     notBefore, notAfter, notBeforeMs, notAfterMs, daysLeft,
     ciphers, qVulnerable, qScore, crtCount,
     resolvedIp, resolvedIps, server, hsts, hstsMaxAge, secHeaders, secScore,
-    sources, hasCAARecords,
+    sources, hasCAARecords, pqcBucket, scanConfidence, techFingerprint,
     scannedAt: new Date().toISOString()
   };
 };
@@ -1085,134 +1192,168 @@ QSR._buildScanResult = function(host, dnsData, crtData, headerData, tlsProbeData
 
 /* Known CA → TLS profile knowledge base (curated, not randomized) */
 QSR._CA_PROFILES = [
-  { match: ["let's encrypt","letsencrypt","r3","e1","r10","r11"],
-    grade:'A', tls:'1.3', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_CHACHA20_POLY1305_SHA256',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false}
-    ]},
-  { match: ['digicert','digicert sha2'],
-    grade:'A', tls:'1.3', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_RSA_WITH_AES_256_CBC_SHA256',strength:256,forward:false,quantum:false}
-    ]},
-  { match: ['sectigo','comodo','usertrust'],
-    grade:'B', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_RSA_WITH_AES_256_CBC_SHA256',strength:256,forward:false,quantum:false},
-      {name:'TLS_RSA_WITH_AES_128_CBC_SHA',strength:128,forward:false,quantum:false}
-    ]},
-  { match: ['globalsign','alphassl'],
-    grade:'A', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:false,quantum:false}
-    ]},
-  { match: ['godaddy','go daddy','starfield'],
-    grade:'B', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA1withRSA',
-    ciphers:[
-      {name:'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_RSA_WITH_AES_256_CBC_SHA',strength:256,forward:false,quantum:false},
-      {name:'TLS_RSA_WITH_AES_128_CBC_SHA',strength:128,forward:false,quantum:false}
-    ]},
-  { match: ['entrust'],
-    grade:'A', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_RSA_WITH_AES_256_CBC_SHA256',strength:256,forward:false,quantum:false}
-    ]},
-  { match: ['amazon','amazonaws'],
-    grade:'A', tls:'1.3', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false}
-    ]},
-  { match: ['nic ','national informatics','nic.in','safescrypt','idrbt','e-mudhra'],
-    grade:'B', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_RSA_WITH_AES_256_CBC_SHA256',strength:256,forward:false,quantum:false},
-      {name:'TLS_RSA_WITH_AES_128_CBC_SHA',strength:128,forward:false,quantum:false}
-    ]},
-  { match: ['microsoft','azure'],
-    grade:'A', tls:'1.3', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false}
-    ]},
-  { match: ['google','gts','gsr'],
-    grade:'A+', tls:'1.3', keyAlg:'ECDSA', keySize:256, sigAlg:'SHA256withECDSA',
-    ciphers:[
-      {name:'TLS_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_CHACHA20_POLY1305_SHA256',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false}
-    ]},
-  { match: ['baltimore','cybertrust'],
-    grade:'A', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_RSA_WITH_AES_256_CBC_SHA256',strength:256,forward:false,quantum:false}
-    ]}
+  {
+    match: ["let's encrypt", "letsencrypt", "r3", "e1", "r10", "r11"],
+    grade: 'A', tls: '1.3', keyAlg: 'RSA', keySize: 2048, sigAlg: 'SHA256withRSA',
+    ciphers: [
+      { name: 'TLS_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_AES_128_GCM_SHA256', strength: 128, forward: true, quantum: false },
+      { name: 'TLS_CHACHA20_POLY1305_SHA256', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false }
+    ]
+  },
+  {
+    match: ['digicert', 'digicert sha2'],
+    grade: 'A', tls: '1.3', keyAlg: 'RSA', keySize: 2048, sigAlg: 'SHA256withRSA',
+    ciphers: [
+      { name: 'TLS_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256', strength: 128, forward: true, quantum: false },
+      { name: 'TLS_RSA_WITH_AES_256_CBC_SHA256', strength: 256, forward: false, quantum: false }
+    ]
+  },
+  {
+    match: ['sectigo', 'comodo', 'usertrust'],
+    grade: 'B', tls: '1.2', keyAlg: 'RSA', keySize: 2048, sigAlg: 'SHA256withRSA',
+    ciphers: [
+      { name: 'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256', strength: 128, forward: true, quantum: false },
+      { name: 'TLS_RSA_WITH_AES_256_CBC_SHA256', strength: 256, forward: false, quantum: false },
+      { name: 'TLS_RSA_WITH_AES_128_CBC_SHA', strength: 128, forward: false, quantum: false }
+    ]
+  },
+  {
+    match: ['globalsign', 'alphassl'],
+    grade: 'A', tls: '1.2', keyAlg: 'RSA', keySize: 2048, sigAlg: 'SHA256withRSA',
+    ciphers: [
+      { name: 'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_RSA_WITH_AES_256_GCM_SHA384', strength: 256, forward: false, quantum: false }
+    ]
+  },
+  {
+    match: ['godaddy', 'go daddy', 'starfield'],
+    grade: 'B', tls: '1.2', keyAlg: 'RSA', keySize: 2048, sigAlg: 'SHA1withRSA',
+    ciphers: [
+      { name: 'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256', strength: 128, forward: true, quantum: false },
+      { name: 'TLS_RSA_WITH_AES_256_CBC_SHA', strength: 256, forward: false, quantum: false },
+      { name: 'TLS_RSA_WITH_AES_128_CBC_SHA', strength: 128, forward: false, quantum: false }
+    ]
+  },
+  {
+    match: ['entrust'],
+    grade: 'A', tls: '1.2', keyAlg: 'RSA', keySize: 2048, sigAlg: 'SHA256withRSA',
+    ciphers: [
+      { name: 'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_RSA_WITH_AES_256_CBC_SHA256', strength: 256, forward: false, quantum: false }
+    ]
+  },
+  {
+    match: ['amazon', 'amazonaws'],
+    grade: 'A', tls: '1.3', keyAlg: 'RSA', keySize: 2048, sigAlg: 'SHA256withRSA',
+    ciphers: [
+      { name: 'TLS_AES_128_GCM_SHA256', strength: 128, forward: true, quantum: false },
+      { name: 'TLS_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256', strength: 128, forward: true, quantum: false },
+      { name: 'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false }
+    ]
+  },
+  {
+    match: ['nic ', 'national informatics', 'nic.in', 'safescrypt', 'idrbt', 'e-mudhra'],
+    grade: 'B', tls: '1.2', keyAlg: 'RSA', keySize: 2048, sigAlg: 'SHA256withRSA',
+    ciphers: [
+      { name: 'TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_RSA_WITH_AES_256_CBC_SHA256', strength: 256, forward: false, quantum: false },
+      { name: 'TLS_RSA_WITH_AES_128_CBC_SHA', strength: 128, forward: false, quantum: false }
+    ]
+  },
+  {
+    match: ['microsoft', 'azure'],
+    grade: 'A', tls: '1.3', keyAlg: 'RSA', keySize: 2048, sigAlg: 'SHA256withRSA',
+    ciphers: [
+      { name: 'TLS_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256', strength: 128, forward: true, quantum: false }
+    ]
+  },
+  {
+    match: ['google', 'gts', 'gsr'],
+    grade: 'A+', tls: '1.3', keyAlg: 'ECDSA', keySize: 256, sigAlg: 'SHA256withECDSA',
+    ciphers: [
+      { name: 'TLS_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_AES_128_GCM_SHA256', strength: 128, forward: true, quantum: false },
+      { name: 'TLS_CHACHA20_POLY1305_SHA256', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false }
+    ]
+  },
+  {
+    match: ['baltimore', 'cybertrust'],
+    grade: 'A', tls: '1.2', keyAlg: 'RSA', keySize: 2048, sigAlg: 'SHA256withRSA',
+    ciphers: [
+      { name: 'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_RSA_WITH_AES_256_CBC_SHA256', strength: 256, forward: false, quantum: false }
+    ]
+  }
 ];
 
 /* CDN fingerprint overrides (from server header / alt-svc / ip range) */
 QSR._CDN_OVERRIDES = [
-  { match: 'cloudflare',
-    grade:'A+', tls:'1.3', keyAlg:'ECDSA', keySize:256, sigAlg:'SHA256withECDSA',
-    ciphers:[
-      {name:'TLS_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_CHACHA20_POLY1305_SHA256',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false}
-    ]},
-  { match: 'fastly',
-    grade:'A', tls:'1.3', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false}
-    ]},
-  { match: 'akamai',
-    grade:'A', tls:'1.3', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false}
-    ]},
-  { match: 'gws', /* Google Web Server */
-    grade:'A+', tls:'1.3', keyAlg:'ECDSA', keySize:256, sigAlg:'SHA256withECDSA',
-    ciphers:[
-      {name:'TLS_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_CHACHA20_POLY1305_SHA256',strength:256,forward:true,quantum:false}
-    ]},
-  { match: 'nginx',
-    grade:'B', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-      {name:'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_RSA_WITH_AES_256_CBC_SHA',strength:256,forward:false,quantum:false}
-    ]},
-  { match: 'apache',
-    grade:'B', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-    ciphers:[
-      {name:'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-      {name:'TLS_RSA_WITH_AES_256_CBC_SHA',strength:256,forward:false,quantum:false}
-    ]}
+  {
+    match: 'cloudflare',
+    grade: 'A+', tls: '1.3', keyAlg: 'ECDSA', keySize: 256, sigAlg: 'SHA256withECDSA',
+    ciphers: [
+      { name: 'TLS_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_AES_128_GCM_SHA256', strength: 128, forward: true, quantum: false },
+      { name: 'TLS_CHACHA20_POLY1305_SHA256', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false }
+    ]
+  },
+  {
+    match: 'fastly',
+    grade: 'A', tls: '1.3', keyAlg: 'RSA', keySize: 2048, sigAlg: 'SHA256withRSA',
+    ciphers: [
+      { name: 'TLS_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false }
+    ]
+  },
+  {
+    match: 'akamai',
+    grade: 'A', tls: '1.3', keyAlg: 'RSA', keySize: 2048, sigAlg: 'SHA256withRSA',
+    ciphers: [
+      { name: 'TLS_AES_128_GCM_SHA256', strength: 128, forward: true, quantum: false },
+      { name: 'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false }
+    ]
+  },
+  {
+    match: 'gws', /* Google Web Server */
+    grade: 'A+', tls: '1.3', keyAlg: 'ECDSA', keySize: 256, sigAlg: 'SHA256withECDSA',
+    ciphers: [
+      { name: 'TLS_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_CHACHA20_POLY1305_SHA256', strength: 256, forward: true, quantum: false }
+    ]
+  },
+  {
+    match: 'nginx',
+    grade: 'B', tls: '1.2', keyAlg: 'RSA', keySize: 2048, sigAlg: 'SHA256withRSA',
+    ciphers: [
+      { name: 'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false },
+      { name: 'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256', strength: 128, forward: true, quantum: false },
+      { name: 'TLS_RSA_WITH_AES_256_CBC_SHA', strength: 256, forward: false, quantum: false }
+    ]
+  },
+  {
+    match: 'apache',
+    grade: 'B', tls: '1.2', keyAlg: 'RSA', keySize: 2048, sigAlg: 'SHA256withRSA',
+    ciphers: [
+      { name: 'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256', strength: 128, forward: true, quantum: false },
+      { name: 'TLS_RSA_WITH_AES_256_CBC_SHA', strength: 256, forward: false, quantum: false }
+    ]
+  }
 ];
 
 /* REAL inference engine — purely evidence-driven, no random fallback */
-QSR._inferProfileFromCA = function(issuerL, host, crtCount, daysLeft, serverHeader, hstsMaxAge) {
+QSR._inferProfileFromCA = function (issuerL, host, crtCount, daysLeft, serverHeader, hstsMaxAge) {
   var profile = null;
   var serverL = (serverHeader || '').toLowerCase();
 
@@ -1227,7 +1368,7 @@ QSR._inferProfileFromCA = function(issuerL, host, crtCount, daysLeft, serverHead
   /* Step 2: CA knowledge base match */
   if (!profile) {
     for (var caP of QSR._CA_PROFILES) {
-      if (caP.match.some(function(m) { return issuerL.includes(m); })) {
+      if (caP.match.some(function (m) { return issuerL.includes(m); })) {
         profile = Object.assign({}, caP);
         break;
       }
@@ -1237,28 +1378,34 @@ QSR._inferProfileFromCA = function(issuerL, host, crtCount, daysLeft, serverHead
   /* Step 3: Domain TLD heuristics — no server/CA data found */
   if (!profile) {
     var isGovIn = host.endsWith('.gov.in') || host.endsWith('.nic.in') || host.endsWith('.gov');
-    var isPNB   = host.endsWith('.pnb.co.in') || host.endsWith('.netpnb.com') || host.endsWith('.pnbindia.in');
+    var isPNB = host.endsWith('.pnb.co.in') || host.endsWith('.netpnb.com') || host.endsWith('.pnbindia.in');
     if (isGovIn) {
-      profile = { grade:'B', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-        ciphers:[
-          {name:'TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384',strength:256,forward:true,quantum:false},
-          {name:'TLS_RSA_WITH_AES_256_CBC_SHA256',strength:256,forward:false,quantum:false}
-        ]};
+      profile = {
+        grade: 'B', tls: '1.2', keyAlg: 'RSA', keySize: 2048, sigAlg: 'SHA256withRSA',
+        ciphers: [
+          { name: 'TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384', strength: 256, forward: true, quantum: false },
+          { name: 'TLS_RSA_WITH_AES_256_CBC_SHA256', strength: 256, forward: false, quantum: false }
+        ]
+      };
     } else if (isPNB) {
-      profile = { grade:'A', tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-        ciphers:[
-          {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-          {name:'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256',strength:128,forward:true,quantum:false},
-          {name:'TLS_RSA_WITH_AES_256_CBC_SHA256',strength:256,forward:false,quantum:false}
-        ]};
+      profile = {
+        grade: 'A', tls: '1.2', keyAlg: 'RSA', keySize: 2048, sigAlg: 'SHA256withRSA',
+        ciphers: [
+          { name: 'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false },
+          { name: 'TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256', strength: 128, forward: true, quantum: false },
+          { name: 'TLS_RSA_WITH_AES_256_CBC_SHA256', strength: 256, forward: false, quantum: false }
+        ]
+      };
     } else {
       /* Absolute last resort — base profile from cert health signals only */
-      profile = { grade: daysLeft > 30 ? 'B' : daysLeft > 0 ? 'C' : 'T',
-        tls:'1.2', keyAlg:'RSA', keySize:2048, sigAlg:'SHA256withRSA',
-        ciphers:[
-          {name:'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false},
-          {name:'TLS_RSA_WITH_AES_256_CBC_SHA256',strength:256,forward:false,quantum:false}
-        ]};
+      profile = {
+        grade: daysLeft > 30 ? 'B' : daysLeft > 0 ? 'C' : 'T',
+        tls: '1.2', keyAlg: 'RSA', keySize: 2048, sigAlg: 'SHA256withRSA',
+        ciphers: [
+          { name: 'TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false },
+          { name: 'TLS_RSA_WITH_AES_256_CBC_SHA256', strength: 256, forward: false, quantum: false }
+        ]
+      };
     }
   }
 
@@ -1273,7 +1420,7 @@ QSR._inferProfileFromCA = function(issuerL, host, crtCount, daysLeft, serverHead
   if (hstsMaxAge && hstsMaxAge >= 31536000 && profile.tls === '1.2') {
     profile.tls = '1.3';
     if (!profile.ciphers.some(c => c.name.startsWith('TLS_AES'))) {
-      profile.ciphers.unshift({name:'TLS_AES_256_GCM_SHA384',strength:256,forward:true,quantum:false});
+      profile.ciphers.unshift({ name: 'TLS_AES_256_GCM_SHA384', strength: 256, forward: true, quantum: false });
     }
   }
 
@@ -1291,105 +1438,110 @@ QSR._inferProfileFromCA = function(issuerL, host, crtCount, daysLeft, serverHead
    Max possible: 100 | Designed to produce REAL spread across sites
    Score bands: 85-100 Excellent, 65-84 Good, 40-64 Fair, <40 Poor
    ══════════════════════════════════════════════════════════════════ */
-QSR._calcQuantumScore = function(keyAlg, keySize, tls, ciphers, secScore, daysLeft, hasCAA, hstsMaxAge, crtCount) {
+QSR._calcQuantumScore = function (keyAlg, keySize, tls, ciphers, secScore, daysLeft, hasCAA, hstsMaxAge, crtCount, hasLiveTLSProbe, techFingerprint) {
   var score = 0;
-
-  /* ── 1. Key Algorithm + Size (0-22) — biggest differentiator ── */
-  if (keyAlg === 'ECDSA') {
-    score += keySize >= 521 ? 22 : keySize >= 384 ? 19 : keySize >= 256 ? 14 : 8;
-  } else if (keyAlg === 'Ed25519') {
-    score += 20;
-  } else {
-    /* RSA — most sites live here, so gradient matters most */
-    score += keySize >= 8192 ? 22 : keySize >= 4096 ? 16 : keySize >= 3072 ? 10 : keySize >= 2048 ? 6 : 0;
-  }
-
-  /* ── 2. TLS version (0-18) — sharp drop from 1.3 to 1.2 ── */
-  if (tls === '1.3') score += 18;
-  else if (tls === '1.2+' || tls === '1.2') score += 8;
-  else if (tls === '1.1') score += 2;
-  else score += 0; /* TLS 1.0 or unknown */
-
-  /* ── 3. PQC / Post-Quantum cipher support (0-18) ── */
-  var pqcCiphers = ciphers.filter(function(c){ return c.quantum; });
-  if (pqcCiphers.length >= 2) score += 18;
-  else if (pqcCiphers.length === 1) score += 14;
-  else score += 0; /* No PQC = massive gap */
-
-  /* ── 4. Forward Secrecy quality (0-10) ── */
-  var fsCiphers = ciphers.filter(function(c){ return c.forward; });
-  var totalCiphers = ciphers.length || 1;
-  var fsRatio = fsCiphers.length / totalCiphers;
-  if (fsRatio >= 1.0) score += 10;       /* 100% FS ciphers */
-  else if (fsRatio >= 0.75) score += 7;  /* Most are FS */
-  else if (fsRatio >= 0.5) score += 4;   /* Half are FS */
-  else if (fsRatio > 0) score += 2;      /* Some FS */
-  /* else 0 — no forward secrecy at all */
-
-  /* ── 5. AEAD cipher quality (0-7) — ratio-based, not boolean ── */
-  var aeadCiphers = ciphers.filter(function(c){
+  var suites = Array.isArray(ciphers) ? ciphers : [];
+  var totalCiphers = suites.length || 1;
+  var pqcCiphers = suites.filter(function (c) { return c.quantum; });
+  var fsCiphers = suites.filter(function (c) { return c.forward; });
+  var aeadCiphers = suites.filter(function (c) {
     return c.name.includes('GCM') || c.name.includes('CHACHA20') || c.name.includes('CCM');
   });
+  var legacyCiphers = suites.filter(function (c) {
+    return c.name.includes('RC4') || c.name.includes('DES') || c.name.includes('3DES') ||
+      c.name.includes('MD5') || c.name.includes('EXPORT') || c.name.includes('NULL');
+  });
+  var rsaKexCiphers = suites.filter(function (c) { return c.name.includes('RSA_WITH'); });
+  var strong256 = suites.filter(function (c) { return (c.strength || 0) >= 256; });
+  var pqcRatio = pqcCiphers.length / totalCiphers;
+  var fsRatio = fsCiphers.length / totalCiphers;
   var aeadRatio = aeadCiphers.length / totalCiphers;
-  if (aeadRatio >= 1.0) score += 7;      /* All AEAD */
-  else if (aeadRatio >= 0.75) score += 5;
-  else if (aeadRatio >= 0.5) score += 3;
-  else if (aeadRatio > 0) score += 1;
+  var rsaKexRatio = rsaKexCiphers.length / totalCiphers;
+  var strongRatio = strong256.length / totalCiphers;
+  var fingerprintFindings = techFingerprint && techFingerprint.findings ? techFingerprint.findings.length : 0;
 
-  /* ── 6. Security headers completeness (0-8) — gradient ── */
-  /* secScore is 0-5 count of present headers */
+  /* 1. Key algorithm and crypto-agility baseline */
+  if (keyAlg === 'ECDSA') score += keySize >= 384 ? 12 : keySize >= 256 ? 9 : 5;
+  else if (keyAlg === 'Ed25519') score += 10;
+  else if (keyAlg === 'RSA') score += keySize >= 4096 ? 10 : keySize >= 3072 ? 7 : keySize >= 2048 ? 4 : 0;
+  else score += 2;
+
+  if (!pqcCiphers.length && (keyAlg === 'RSA' || keyAlg === 'ECDSA' || keyAlg === 'Ed25519')) score -= 6;
+
+  /* 2. Protocol maturity */
+  if (tls === '1.3') score += 14;
+  else if (tls === '1.2+' || tls === '1.2') score += 8;
+  else if (tls === '1.1') score += 2;
+  else score -= 4;
+
+  /* 3. PQC / hybrid negotiation evidence */
+  if (pqcRatio >= 0.75) score += 28;
+  else if (pqcRatio > 0.25) score += 22;
+  else if (pqcRatio > 0) score += 16;
+
+  /* 4. Forward secrecy */
+  if (fsRatio >= 1.0) score += 10;
+  else if (fsRatio >= 0.75) score += 8;
+  else if (fsRatio >= 0.5) score += 5;
+  else if (fsRatio > 0) score += 2;
+  else score -= 5;
+
+  /* 5. AEAD quality */
+  if (aeadRatio >= 1.0) score += 8;
+  else if (aeadRatio >= 0.75) score += 6;
+  else if (aeadRatio >= 0.5) score += 4;
+  else if (aeadRatio > 0) score += 1;
+  else score -= 4;
+
+  /* 6. Browser-facing hardening signals */
   score += secScore >= 5 ? 8 : secScore >= 4 ? 6 : secScore >= 3 ? 4 : secScore >= 2 ? 2 : secScore >= 1 ? 1 : 0;
 
-  /* ── 7. HSTS quality (0-5) ── */
-  if (hstsMaxAge && hstsMaxAge >= 63072000) score += 5;        /* 2+ years, preload-ready */
-  else if (hstsMaxAge && hstsMaxAge >= 31536000) score += 3;   /* 1 year */
-  else if (hstsMaxAge && hstsMaxAge >= 2592000) score += 1;    /* 30 days */
-  /* else 0 — no HSTS or very short */
+  /* 7. HSTS maturity */
+  if (hstsMaxAge && hstsMaxAge >= 63072000) score += 5;
+  else if (hstsMaxAge && hstsMaxAge >= 31536000) score += 3;
+  else if (hstsMaxAge && hstsMaxAge >= 2592000) score += 1;
 
-  /* ── 8. CAA DNS records (0-3) ── */
+  /* 8. DNS issuance governance */
   if (hasCAA) score += 3;
 
-  /* ── 9. Certificate transparency depth (0-3) ── */
-  if (crtCount >= 10) score += 3;        /* Well-established domain */
+  /* 9. Certificate transparency evidence */
+  if (crtCount >= 10) score += 3;
   else if (crtCount >= 3) score += 2;
   else if (crtCount >= 1) score += 1;
-  else score -= 3;                        /* No CT logs = suspicious */
+  else score -= 2;
 
-  /* ── 10. Legacy cipher penalties (-12 to 0) ── */
-  var legacyCount = ciphers.filter(function(c){
-    return c.name.includes('RC4') || c.name.includes('DES') || c.name.includes('3DES') ||
-           c.name.includes('MD5') || c.name.includes('EXPORT') || c.name.includes('NULL');
-  }).length;
-  score -= Math.min(legacyCount * 4, 12);
+  /* 10. Legacy cryptography penalties */
+  score -= Math.min(legacyCiphers.length * 5, 15);
 
-  /* ── 11. Static RSA key exchange penalty (-6 to +3) ── */
-  var rsaKexCiphers = ciphers.filter(function(c){ return c.name.includes('RSA_WITH'); });
-  var rsaKexRatio = rsaKexCiphers.length / totalCiphers;
-  if (rsaKexRatio === 0) score += 3;      /* No static RSA KEX — excellent */
+  /* 11. Static RSA key exchange penalty */
+  if (rsaKexRatio === 0) score += 3;
   else if (rsaKexRatio <= 0.25) score += 0;
   else if (rsaKexRatio <= 0.5) score -= 3;
-  else score -= 6;                        /* Majority static RSA KEX — bad */
+  else score -= 7;
 
-  /* ── 12. Certificate health (-15 to +3) — steeper penalties ── */
+  /* 12. Certificate health */
   if (daysLeft > 270) score += 3;
   else if (daysLeft > 180) score += 2;
   else if (daysLeft > 90) score += 1;
   else if (daysLeft > 30) score -= 2;
   else if (daysLeft > 7) score -= 5;
   else if (daysLeft > 0) score -= 10;
-  else score -= 15;                       /* Expired! */
+  else score -= 15;
 
-  /* ── 13. Cipher strength — bonus for 256-bit dominant ── */
-  var strong256 = ciphers.filter(function(c){ return c.strength >= 256; });
-  var strongRatio = strong256.length / totalCiphers;
+  /* 13. Strong cipher dominance */
   if (strongRatio >= 0.75) score += 2;
   else if (strongRatio < 0.25) score -= 2;
 
-  return Math.max(0, Math.min(score, 100));
+  /* 14. Confidence bonuses from deeper evidence collection */
+  if (hasLiveTLSProbe) score += 4;
+  if (fingerprintFindings >= 3) score += 2;
+  else if (fingerprintFindings === 0) score -= 1;
+
+  return Math.max(0, Math.min(Math.round(score), 100));
 };
 
 /* ── Render result ───────────────────────────────────────────── */
-QSR._renderScanResult = function(r) {
+QSR._renderScanResult = function (r) {
   /* Risk banner */
   var riskEl = document.getElementById('risk-banner');
   riskEl.className = 'risk-banner risk-' + (r.qVulnerable ? 'danger' : 'ok');
@@ -1411,19 +1563,19 @@ QSR._renderScanResult = function(r) {
       <div class="detail-row"><span class="detail-key">Valid From</span><span class="detail-val">${r.notBefore}</span></div>
       <div class="detail-row"><span class="detail-key">Expires</span><span class="detail-val" style="color:${dC};font-weight:700;">${r.notAfter} <span style="font-size:11px;">(${r.daysLeft !== null ? r.daysLeft + 'd left' : '—'})</span></span></div>
       <div class="detail-row"><span class="detail-key">CT Log Entries</span><span class="detail-val">${r.crtCount} unique certs</span></div>
-      ${r.resolvedIp ? `<div class="detail-row"><span class="detail-key">Resolved IP</span><span class="detail-val"><code style="color:#4299e1;">${r.resolvedIp}</code>${r.resolvedIps.length > 1 ? ` <span style="font-size:11px;color:#888;">(+${r.resolvedIps.length-1} more)</span>` : ''}</span></div>` : ''}
+      ${r.resolvedIp ? `<div class="detail-row"><span class="detail-key">Resolved IP</span><span class="detail-val"><code style="color:#4299e1;">${r.resolvedIp}</code>${r.resolvedIps.length > 1 ? ` <span style="font-size:11px;color:#888;">(+${r.resolvedIps.length - 1} more)</span>` : ''}</span></div>` : ''}
       ${r.server ? `<div class="detail-row"><span class="detail-key">Server</span><span class="detail-val"><code>${r.server}</code></span></div>` : ''}
-      ${r.hsts ? `<div class="detail-row"><span class="detail-key">HSTS</span><span class="detail-val" style="font-size:11px;color:#48bb78;">✓ ${r.hstsMaxAge ? Math.round(r.hstsMaxAge/86400)+'d max-age' : 'enabled'}</span></div>` : '<div class="detail-row"><span class="detail-key">HSTS</span><span class="detail-val"><span class="badge badge-danger">Missing</span></span></div>'}
+      ${r.hsts ? `<div class="detail-row"><span class="detail-key">HSTS</span><span class="detail-val" style="font-size:11px;color:#48bb78;">✓ ${r.hstsMaxAge ? Math.round(r.hstsMaxAge / 86400) + 'd max-age' : 'enabled'}</span></div>` : '<div class="detail-row"><span class="detail-key">HSTS</span><span class="detail-val"><span class="badge badge-danger">Missing</span></span></div>'}
     </div>
     ${r.sources && r.sources.length ? `<div style="margin-top:10px;padding:8px 12px;background:rgba(66,153,225,0.07);border-radius:8px;font-size:11px;color:#4299e1;border-left:3px solid #4299e1;">📡 Data sources: ${r.sources.join(' · ')}</div>` : ''}
     ${r.secHeaders && r.secHeaders.length ? `
     <div style="margin-top:12px;">
       <div style="font-size:12px;font-weight:700;color:#4a4a6a;margin-bottom:8px;">🛡 Live Security Headers</div>
       ${r.secHeaders.map(h => `<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.05);gap:8px;">
-        <span style="font-size:11px;font-family:'JetBrains Mono',monospace;color:${h.ok?'#2d3748':'#999'};">${h.name}</span>
+        <span style="font-size:11px;font-family:'JetBrains Mono',monospace;color:${h.ok ? '#2d3748' : '#999'};">${h.name}</span>
         <span>${h.ok ? '<span class="badge badge-ok">✓ Present</span>' : '<span class="badge badge-danger">✗ Missing</span>'}</span>
       </div>`).join('')}
-      <div style="margin-top:8px;font-size:12px;color:#888;">Security header score: <strong style="color:${r.secScore>=4?'#48bb78':r.secScore>=2?'#ed8936':'#e53e3e'}">${r.secScore}/5</strong></div>
+      <div style="margin-top:8px;font-size:12px;color:#888;">Security header score: <strong style="color:${r.secScore >= 4 ? '#48bb78' : r.secScore >= 2 ? '#ed8936' : '#e53e3e'}">${r.secScore}/5</strong></div>
     </div>` : ''}`;
 
 
@@ -1433,12 +1585,12 @@ QSR._renderScanResult = function(r) {
   var gaugeLabel = document.getElementById('scanner-gauge-label');
   /* Build threat blips from vulnerabilities */
   var radarThreats = [];
-  if (r.keySize < 4096) radarThreats.push({label:'Weak Key', severity:0.7});
-  if (r.tlsVersion < '1.3') radarThreats.push({label:'Legacy TLS', severity:0.5});
-  if (!r.ciphers.some(function(c){return c.quantum;})) radarThreats.push({label:'No PQC', severity:0.9});
-  if (!r.ciphers.some(function(c){return c.forward;})) radarThreats.push({label:'No PFS', severity:0.6});
-  if (!r.hsts) radarThreats.push({label:'No HSTS', severity:0.3});
-  if (r.daysLeft !== null && r.daysLeft < 30) radarThreats.push({label:'Cert Expiry', severity:0.8});
+  if (r.keySize < 4096) radarThreats.push({ label: 'Weak Key', severity: 0.7 });
+  if (r.tlsVersion < '1.3') radarThreats.push({ label: 'Legacy TLS', severity: 0.5 });
+  if (!r.ciphers.some(function (c) { return c.quantum; })) radarThreats.push({ label: 'No PQC', severity: 0.9 });
+  if (!r.ciphers.some(function (c) { return c.forward; })) radarThreats.push({ label: 'No PFS', severity: 0.6 });
+  if (!r.hsts) radarThreats.push({ label: 'No HSTS', severity: 0.3 });
+  if (r.daysLeft !== null && r.daysLeft < 30) radarThreats.push({ label: 'Cert Expiry', severity: 0.8 });
   if (QSR._drawThreatRadar) {
     /* Hide the HTML overlay — the radar draws its own score on canvas */
     if (gaugeLabel) gaugeLabel.style.display = 'none';
@@ -1450,10 +1602,10 @@ QSR._renderScanResult = function(r) {
   }
 
   var factors = [
-    { label:'Key Size ≥ 4096-bit', ok: r.keySize >= 4096, note: r.keySize < 4096 ? `${r.keyAlg}-${r.keySize} → quantum-vulnerable to Shor's` : 'Adequate for near-term quantum resistance' },
-    { label:'TLS 1.3', ok: r.tlsVersion >= '1.3', note: r.tlsVersion < '1.3' ? `TLS ${r.tlsVersion} has known weaknesses; upgrade to TLS 1.3` : 'TLS 1.3 — optimal cipher negotiation' },
-    { label:'Perfect Forward Secrecy', ok: r.ciphers.some(c=>c.forward), note: r.ciphers.some(c=>c.forward) ? 'PFS enabled — session keys rotated' : 'No PFS: session capture + decrypt attack possible' },
-    { label:'PQC Cipher Support', ok: r.ciphers.some(c=>c.quantum), note: r.ciphers.some(c=>c.quantum) ? 'Post-quantum cipher detected!' : 'No CRYSTALS-Kyber or hybrid PQC ciphers found' }
+    { label: 'Key Size ≥ 4096-bit', ok: r.keySize >= 4096, note: r.keySize < 4096 ? `${r.keyAlg}-${r.keySize} → quantum-vulnerable to Shor's` : 'Adequate for near-term quantum resistance' },
+    { label: 'TLS 1.3', ok: r.tlsVersion >= '1.3', note: r.tlsVersion < '1.3' ? `TLS ${r.tlsVersion} has known weaknesses; upgrade to TLS 1.3` : 'TLS 1.3 — optimal cipher negotiation' },
+    { label: 'Perfect Forward Secrecy', ok: r.ciphers.some(c => c.forward), note: r.ciphers.some(c => c.forward) ? 'PFS enabled — session keys rotated' : 'No PFS: session capture + decrypt attack possible' },
+    { label: 'PQC Cipher Support', ok: r.ciphers.some(c => c.quantum), note: r.ciphers.some(c => c.quantum) ? 'Post-quantum cipher detected!' : 'No CRYSTALS-Kyber or hybrid PQC ciphers found' }
   ];
   document.getElementById('quantum-factors').innerHTML = factors.map(f => `
     <div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid rgba(0,0,0,0.06);">
@@ -1473,7 +1625,7 @@ QSR._renderScanResult = function(r) {
     </div>
     <div style="background:rgba(0,0,0,0.08);border-radius:6px;height:16px;position:relative;overflow:hidden;">
       <div style="width:${pct}%;background:${tlColor};height:100%;border-radius:6px;transition:width 0.8s ease;"></div>
-      <div style="position:absolute;top:0;left:${Math.min(pct,95)}%;transform:translateX(-50%);height:100%;width:2px;background:rgba(0,0,0,0.3);"></div>
+      <div style="position:absolute;top:0;left:${Math.min(pct, 95)}%;transform:translateX(-50%);height:100%;width:2px;background:rgba(0,0,0,0.3);"></div>
     </div>
     <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;">
       <span style="color:#888;">${pct}% of validity period used</span>
@@ -1489,28 +1641,28 @@ QSR._renderScanResult = function(r) {
     <div style="overflow-x:auto;">
       <table class="data-table">
         <thead><tr><th>Cipher Suite</th><th>Strength</th><th>Forward Secrecy</th><th>Quantum Safe</th><th>Threat Level</th></tr></thead>
-        <tbody>${r.ciphers.slice(0,12).map(c => {
-          var qsafe = c.quantum || quantumSafe[c.name];
-          var threat = !c.forward ? 'CRITICAL' : c.strength < 128 ? 'HIGH' : !qsafe ? 'MEDIUM' : 'LOW';
-          var tColor = {CRITICAL:'#e53e3e',HIGH:'#ed8936',MEDIUM:'#ecc94b',LOW:'#48bb78'}[threat];
-          return `<tr>
+        <tbody>${r.ciphers.slice(0, 12).map(c => {
+    var qsafe = c.quantum || quantumSafe[c.name];
+    var threat = !c.forward ? 'CRITICAL' : c.strength < 128 ? 'HIGH' : !qsafe ? 'MEDIUM' : 'LOW';
+    var tColor = { CRITICAL: '#e53e3e', HIGH: '#ed8936', MEDIUM: '#ecc94b', LOW: '#48bb78' }[threat];
+    return `<tr>
             <td><code style="font-size:11px;">${c.name}</code></td>
             <td>${c.strength}-bit</td>
             <td>${c.forward ? '<span class="badge badge-ok">YES</span>' : '<span class="badge badge-danger">NO</span>'}</td>
             <td>${qsafe ? '<span class="badge badge-ok">YES</span>' : '<span class="badge badge-danger">NO</span>'}</td>
             <td><span class="badge" style="background:${tColor}22;color:${tColor};border:1px solid ${tColor};">${threat}</span></td>
           </tr>`;
-        }).join('')}</tbody>
+  }).join('')}</tbody>
       </table>
     </div>`;
 
   /* Vulnerability Fix Cards */
   var vulns = [];
-  if (r.keySize < 4096) vulns.push({ title:'Weak Key Size', icon:'🔑', severity:'HIGH', problem:`Current: ${r.keyAlg}-${r.keySize}. Quantum computers running Shor's algorithm can factor RSA keys exponentially faster.`, fix:'Migrate to CRYSTALS-Kyber (ML-KEM, NIST FIPS 203) for key encapsulation. Short-term: upgrade to RSA-4096.', color:'#ed8936' });
-  if (r.tlsVersion < '1.3') vulns.push({ title:'Legacy TLS Version', icon:'🔓', severity:'MEDIUM', problem:`TLS ${r.tlsVersion} supports deprecated cipher suites and is vulnerable to downgrade attacks.`, fix:'Configure server to enforce TLS 1.3 minimum. Disable TLS 1.0, 1.1, and 1.2 in server config.', color:'#ecc94b' });
-  if (!r.ciphers.some(c=>c.quantum)) vulns.push({ title:'No PQC Cipher Support', icon:'⚛', severity:'CRITICAL', problem:'No post-quantum cipher suites detected. Harvest-Now-Decrypt-Later (HNDL) attacks can record traffic today and decrypt later once quantum computers are available.', fix:'Deploy CRYSTALS-Kyber 768 hybrid cipher suites (X25519Kyber768) in TLS 1.3. Available in BoringSSL, OpenSSL 3.x+.', color:'#e53e3e' });
-  if (!r.ciphers.some(c=>c.forward)) vulns.push({ title:'No Perfect Forward Secrecy', icon:'🔁', severity:'HIGH', problem:'Without PFS, compromise of the server private key decrypts all past recorded sessions.', fix:'Enable ECDHE or DHE key exchange cipher suites. Remove RSA key exchange (TLS_RSA_*) from server config.', color:'#ed8936' });
-  if (!vulns.length) vulns.push({ title:'Good Crypto Hygiene', icon:'✅', severity:'LOW', problem:'No major classical cryptography vulnerabilities detected.', fix:'Begin planning CRYSTALS-Kyber hybrid deployment for full quantum resistance by 2026.', color:'#48bb78' });
+  if (r.keySize < 4096) vulns.push({ title: 'Weak Key Size', icon: '🔑', severity: 'HIGH', problem: `Current: ${r.keyAlg}-${r.keySize}. Quantum computers running Shor's algorithm can factor RSA keys exponentially faster.`, fix: 'Migrate to CRYSTALS-Kyber (ML-KEM, NIST FIPS 203) for key encapsulation. Short-term: upgrade to RSA-4096.', color: '#ed8936' });
+  if (r.tlsVersion < '1.3') vulns.push({ title: 'Legacy TLS Version', icon: '🔓', severity: 'MEDIUM', problem: `TLS ${r.tlsVersion} supports deprecated cipher suites and is vulnerable to downgrade attacks.`, fix: 'Configure server to enforce TLS 1.3 minimum. Disable TLS 1.0, 1.1, and 1.2 in server config.', color: '#ecc94b' });
+  if (!r.ciphers.some(c => c.quantum)) vulns.push({ title: 'No PQC Cipher Support', icon: '⚛', severity: 'CRITICAL', problem: 'No post-quantum cipher suites detected. Harvest-Now-Decrypt-Later (HNDL) attacks can record traffic today and decrypt later once quantum computers are available.', fix: 'Deploy CRYSTALS-Kyber 768 hybrid cipher suites (X25519Kyber768) in TLS 1.3. Available in BoringSSL, OpenSSL 3.x+.', color: '#e53e3e' });
+  if (!r.ciphers.some(c => c.forward)) vulns.push({ title: 'No Perfect Forward Secrecy', icon: '🔁', severity: 'HIGH', problem: 'Without PFS, compromise of the server private key decrypts all past recorded sessions.', fix: 'Enable ECDHE or DHE key exchange cipher suites. Remove RSA key exchange (TLS_RSA_*) from server config.', color: '#ed8936' });
+  if (!vulns.length) vulns.push({ title: 'Good Crypto Hygiene', icon: '✅', severity: 'LOW', problem: 'No major classical cryptography vulnerabilities detected.', fix: 'Begin planning CRYSTALS-Kyber hybrid deployment for full quantum resistance by 2026.', color: '#48bb78' });
   document.getElementById('vuln-cards').innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;">${vulns.map(v => `
     <div class="vuln-card" style="border-left:4px solid ${v.color};">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
@@ -1526,7 +1678,7 @@ QSR._renderScanResult = function(r) {
 };
 
 /* ── Zero Trust Domain Assessment Panel ─────────────────────── */
-QSR._renderZTDomainPanel = function(zt) {
+QSR._renderZTDomainPanel = function (zt) {
   var el = document.getElementById('zt-domain-panel');
   if (!el || !zt) return;
   var col = zt.score >= 70 ? '#48bb78' : zt.score >= 40 ? '#ed8936' : '#e53e3e';
@@ -1546,15 +1698,15 @@ QSR._renderZTDomainPanel = function(zt) {
     </div>
     <div style="display:flex;flex-direction:column;gap:5px;">
       ${zt.findings.map(f => {
-        var fc = f.ok ? '#48bb78' : '#e53e3e';
-        return `<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 10px;border-radius:6px;background:${f.ok?'rgba(72,187,120,0.05)':'rgba(229,62,62,0.05)'};">
-          <span style="flex-shrink:0;font-size:14px;">${f.ok?'✅':'❌'}</span>
+    var fc = f.ok ? '#48bb78' : '#e53e3e';
+    return `<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 10px;border-radius:6px;background:${f.ok ? 'rgba(72,187,120,0.05)' : 'rgba(229,62,62,0.05)'};">
+          <span style="flex-shrink:0;font-size:14px;">${f.ok ? '✅' : '❌'}</span>
           <div>
             <div style="font-weight:700;font-size:12px;color:${fc};">${f.label}</div>
             <div style="font-size:11px;color:#888;">${f.detail}</div>
           </div>
         </div>`;
-      }).join('')}
+  }).join('')}
     </div>
     <div style="margin-top:12px;text-align:right;">
       <button class="btn-scan-sm" onclick="navigateTo('zero-trust')" style="font-size:12px;">🛡 View Full ZT Dashboard →</button>
@@ -1569,71 +1721,73 @@ function _drawScannerGauge(id, score, color) {
   var pw = canvas.parentElement?.clientWidth || 220;
   canvas.width = pw; canvas.height = Math.round(pw * 0.58);
   var ctx = canvas.getContext('2d');
-  var cx = pw/2, cy = canvas.height * 0.88, r = Math.min(pw, canvas.height*1.7) * 0.43;
-  ctx.clearRect(0,0,pw,canvas.height);
-  ctx.beginPath(); ctx.arc(cx,cy,r,Math.PI,0); ctx.lineWidth=16; ctx.strokeStyle='#e2e8f0'; ctx.lineCap='round'; ctx.stroke();
-  var pct = Math.min(Math.max(score,0),100)/100;
-  ctx.beginPath(); ctx.arc(cx,cy,r,Math.PI,Math.PI+pct*Math.PI); ctx.lineWidth=16; ctx.strokeStyle=color; ctx.lineCap='round'; ctx.stroke();
-  [0,25,50,75,100].forEach(v => {
-    var ang = Math.PI+(v/100)*Math.PI;
-    var cols = {0:'#e53e3e',25:'#e53e3e',50:'#ecc94b',75:'#4299e1',100:'#48bb78'};
-    ctx.beginPath(); ctx.moveTo(cx+(r-10)*Math.cos(ang),cy+(r-10)*Math.sin(ang)); ctx.lineTo(cx+(r+6)*Math.cos(ang),cy+(r+6)*Math.sin(ang));
-    ctx.lineWidth=2; ctx.strokeStyle=cols[v]; ctx.stroke();
-    ctx.fillStyle='#4a4a6a'; ctx.font='bold 10px "Exo 2",sans-serif'; ctx.textAlign='center';
-    ctx.fillText(String(v),cx+(r+18)*Math.cos(ang),cy+(r+18)*Math.sin(ang)+3);
+  var cx = pw / 2, cy = canvas.height * 0.88, r = Math.min(pw, canvas.height * 1.7) * 0.43;
+  ctx.clearRect(0, 0, pw, canvas.height);
+  ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, 0); ctx.lineWidth = 16; ctx.strokeStyle = '#e2e8f0'; ctx.lineCap = 'round'; ctx.stroke();
+  var pct = Math.min(Math.max(score, 0), 100) / 100;
+  ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, Math.PI + pct * Math.PI); ctx.lineWidth = 16; ctx.strokeStyle = color; ctx.lineCap = 'round'; ctx.stroke();
+  [0, 25, 50, 75, 100].forEach(v => {
+    var ang = Math.PI + (v / 100) * Math.PI;
+    var cols = { 0: '#e53e3e', 25: '#e53e3e', 50: '#ecc94b', 75: '#4299e1', 100: '#48bb78' };
+    ctx.beginPath(); ctx.moveTo(cx + (r - 10) * Math.cos(ang), cy + (r - 10) * Math.sin(ang)); ctx.lineTo(cx + (r + 6) * Math.cos(ang), cy + (r + 6) * Math.sin(ang));
+    ctx.lineWidth = 2; ctx.strokeStyle = cols[v]; ctx.stroke();
+    ctx.fillStyle = '#4a4a6a'; ctx.font = 'bold 10px "Exo 2",sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(String(v), cx + (r + 18) * Math.cos(ang), cy + (r + 18) * Math.sin(ang) + 3);
   });
 }
 
 /* ── Save to CBOM ────────────────────────────────────────────── */
-QSR.saveScanToCBOM = async function() {
+QSR.saveScanToCBOM = async function () {
   var r = window._lastScanResult;
   if (!r) return;
-  if (!window.QSR_SUPABASE_READY) { if(window.showToast) showToast('Live Supabase session required.','warning'); return; }
+  if (!window.QSR_SUPABASE_READY) { if (window.showToast) showToast('Live Supabase session required.', 'warning'); return; }
   var btn = document.querySelector('[onclick="QSR.saveScanToCBOM()"]');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving...'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
   try {
-    var { error } = await window.QSR_DB.from('cbom').insert({
-      app: r.host, key_length: r.keyAlg+'-'+r.keySize,
-      cipher: r.ciphers[0]?.name || '—', ca: r.issuer, tls_version: r.tlsVersion
-    });
-    if (error) throw error;
-    try { await window.QSR_DB.from('audit_log').insert({ action:'CBOM_GENERATED', target:r.host, ip_addr:'—', icon:'📋' }); } catch(e) {}
-    if (window.QSR_DataLayer) { QSR_DataLayer.clearCache('audit_log'); QSR_DataLayer.clearCache('cbom'); }
-    if(window.showToast) showToast('✓ Saved to CBOM!','success');
-    else alert('Saved to CBOM!');
-  } catch(e) {
-    if(window.showToast) showToast('Save failed: '+e.message,'error');
+    if (window.QSR_DataLayer && window.QSR_DataLayer.syncScanArtifacts) {
+      var syncResult = await window.QSR_DataLayer.syncScanArtifacts(r.host, r);
+      if (!syncResult || !syncResult.ok) throw new Error(syncResult && syncResult.error ? syncResult.error : 'Backend sync failed');
+      try { await QSR_DataLayer.logAction('CBOM_GENERATED', r.host, 'CBOM'); } catch (e) { }
+    }
+    if (window.showToast) showToast('Scan synced to CBOM, assets, PQC and cyber rating!', 'success');
+    else alert('Scan synced successfully!');
+  } catch (e) {
+    if (window.showToast) showToast('Save failed: ' + e.message, 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '💾 Save to CBOM Database'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Save to CBOM Database'; }
   }
 };
 
 /* ── Export CycloneDX ────────────────────────────────────────── */
-QSR.exportScanCycloneDX = function() {
+QSR.exportScanCycloneDX = function () {
   var r = window._lastScanResult;
-  if (!r) { if(window.showToast) showToast('Run a scan first.','warning'); return; }
+  if (!r) { if (window.showToast) showToast('Run a scan first.', 'warning'); return; }
   var obj = {
-    bomFormat:'CycloneDX', specVersion:'1.4', version:1,
-    serialNumber:'urn:uuid:'+crypto.randomUUID(),
-    metadata:{ timestamp:r.scannedAt, tools:[{vendor:'QSecure Radar',name:'TLS Scanner',version:'2.0'}], component:{type:'application',name:r.host} },
-    components: r.ciphers.map((c,i) => ({ type:'cryptographic-asset', 'bom-ref':'cs-'+(i+1), name:c.name,
-      cryptoProperties:{ assetType:'protocol', algorithmProperties:{ primitive:'ae', parameterSetIdentifier:String(c.strength) },
-        protocolProperties:{ type:'tls', version:'TLS '+r.tlsVersion, cipherSuites:[{name:c.name,algorithms:[c.name]}] } } })),
+    bomFormat: 'CycloneDX', specVersion: '1.4', version: 1,
+    serialNumber: 'urn:uuid:' + crypto.randomUUID(),
+    metadata: { timestamp: r.scannedAt, tools: [{ vendor: 'QSecure Radar', name: 'TLS Scanner', version: '2.0' }], component: { type: 'application', name: r.host } },
+    components: r.ciphers.map((c, i) => ({
+      type: 'cryptographic-asset', 'bom-ref': 'cs-' + (i + 1), name: c.name,
+      cryptoProperties: {
+        assetType: 'protocol', algorithmProperties: { primitive: 'ae', parameterSetIdentifier: String(c.strength) },
+        protocolProperties: { type: 'tls', version: 'TLS ' + r.tlsVersion, cipherSuites: [{ name: c.name, algorithms: [c.name] }] }
+      }
+    })),
     vulnerabilities: r.qVulnerable ? [{
-      id:'QR-VULN-001',
-      description:`Quantum-vulnerable: ${r.keyAlg}-${r.keySize} on TLS ${r.tlsVersion}`,
-      recommendation:'Migrate to CRYSTALS-Kyber (ML-KEM) + CRYSTALS-Dilithium (ML-DSA)',
-      ratings:[{severity:'critical',score:9.1,method:'CVSSv3'}], affects:[{ref:r.host}]
+      id: 'QR-VULN-001',
+      description: `Quantum-vulnerable: ${r.keyAlg}-${r.keySize} on TLS ${r.tlsVersion}`,
+      recommendation: 'Migrate to CRYSTALS-Kyber (ML-KEM) + CRYSTALS-Dilithium (ML-DSA)',
+      ratings: [{ severity: 'critical', score: 9.1, method: 'CVSSv3' }], affects: [{ ref: r.host }]
     }] : []
   };
   var a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(obj,null,2)],{type:'application/json'}));
-  a.download = r.host.replace(/\./g,'-')+'-cbom.json'; a.click();
-  if(window.showToast) showToast('CycloneDX JSON exported!','success');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' }));
+  a.download = r.host.replace(/\./g, '-') + '-cbom.json'; a.click();
+  if (window.showToast) showToast('CycloneDX JSON exported!', 'success');
 };
 
 /* ── Scan history ────────────────────────────────────────────── */
-QSR._renderScanHistory = function() {
+QSR._renderScanHistory = function () {
   var el = document.getElementById('scan-history-list');
   if (!el) return;
   var h = window._scanHistory || [];
@@ -1659,7 +1813,7 @@ QSR._renderScanHistory = function() {
 QSR._delay = ms => new Promise(r => setTimeout(r, ms));
 
 /* ── Load DB scan history (per logged-in user) ───────────────── */
-QSR._loadDBHistory = async function(forceRefresh) {
+QSR._loadDBHistory = async function (forceRefresh) {
   var el = document.getElementById('db-history-list');
   var badge = document.getElementById('db-history-badge');
   if (!el) return;
@@ -1678,16 +1832,16 @@ QSR._loadDBHistory = async function(forceRefresh) {
       el.innerHTML = '<div style="color:#888;font-size:13px;padding:6px 0;">No scans saved yet. Run a scan to save it here.</div>';
       return;
     }
-    el.innerHTML = scans.map(function(s) {
+    el.innerHTML = scans.map(function (s) {
       var qc = s.qScore >= 70 ? '#48bb78' : s.qScore >= 40 ? '#ed8936' : '#e53e3e';
       var gc = (s.grade === 'A+' || s.grade === 'A') ? '#48bb78' : s.grade === 'B' ? '#ed8936' : '#e53e3e';
-      var dt = s.scannedAt ? new Date(s.scannedAt).toLocaleString('en-IN', {dateStyle:'short', timeStyle:'short'}) : '—';
+      var dt = s.scannedAt ? new Date(s.scannedAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : '—';
       return `<div class="scan-history-row" style="cursor:pointer;" onclick="QSR._replayDBScan('${s.id}')">
         <div style="display:flex;align-items:center;gap:10px;">
           <div class="scan-hist-dot" style="background:${qc};"></div>
           <div>
             <div style="font-weight:700;font-size:14px;color:#1a1a2e;">${s.host}</div>
-            <div style="font-size:11px;color:#888;">Grade: <strong style="color:${gc};">${s.grade||'—'}</strong> &bull; TLS ${s.tlsVersion||'—'} &bull; ${s.keyAlg||'RSA'}-${s.keySize||2048}</div>
+            <div style="font-size:11px;color:#888;">Grade: <strong style="color:${gc};">${s.grade || '—'}</strong> &bull; TLS ${s.tlsVersion || '—'} &bull; ${s.keyAlg || 'RSA'}-${s.keySize || 2048}</div>
           </div>
         </div>
         <div style="text-align:right;">
@@ -1696,20 +1850,20 @@ QSR._loadDBHistory = async function(forceRefresh) {
         </div>
       </div>`;
     }).join('');
-  } catch(e) {
+  } catch (e) {
     el.innerHTML = '<div style="color:#e53e3e;font-size:12px;">' + e.message + '</div>';
   }
 };
 
 /* Re-render a DB scan result from stored raw_result JSON */
-QSR._replayDBScan = function(id) {
+QSR._replayDBScan = function (id) {
   var el = document.getElementById('db-history-list');
   if (!el) return;
   var rows = el.querySelectorAll('.scan-history-row');
   /* Find the scan from the last fetched list — we re-query the DataLayer cache */
   if (!window.QSR_DataLayer) return;
-  QSR_DataLayer.fetchScanHistory(30).then(function(scans) {
-    var s = scans.find(function(x) { return x.id === id; });
+  QSR_DataLayer.fetchScanHistory(30).then(function (scans) {
+    var s = scans.find(function (x) { return x.id === id; });
     if (!s || !s.rawResult) return;
     var r = s.rawResult;
     if (!r.ciphers) r.ciphers = [];
@@ -1722,4 +1876,6 @@ QSR._replayDBScan = function(id) {
     window.scrollTo(0, 0);
   });
 };
+
+
 

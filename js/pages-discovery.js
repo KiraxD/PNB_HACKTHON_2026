@@ -40,11 +40,11 @@ QSR.pages.discovery = async function(container) {
   /* Load all data in parallel */
   const dl = window.QSR_DataLayer;
   const [assets, domains, ssls, ips, software] = await Promise.all([
-    dl ? dl.fetchAssets()     : Promise.resolve(window.QSR?.assets    || []),
-    dl ? dl.fetchDomains()    : Promise.resolve(window.QSR?.domains    || []),
-    dl ? dl.fetchSSLs()       : Promise.resolve(window.QSR?.ssls      || []),
-    dl ? dl.fetchIPSubnets()  : Promise.resolve(window.QSR?.ipSubnets || []),
-    dl ? dl.fetchSoftware()   : Promise.resolve(window.QSR?.software  || [])
+    dl ? dl.fetchAssets()     : Promise.resolve([]),
+    dl ? dl.fetchDomains()    : Promise.resolve([]),
+    dl ? dl.fetchSSLs()       : Promise.resolve([]),
+    dl ? dl.fetchIPSubnets()  : Promise.resolve([]),
+    dl ? dl.fetchSoftware()   : Promise.resolve([])
   ]);
 
   /* KPIs */
@@ -74,6 +74,10 @@ QSR._discTab = function(tab, btn) {
 QSR._renderDiscAssets = function(assets) {
   const riskBadge = r => ({ Critical:'badge-danger',High:'badge-warn',Medium:'badge-info',Low:'badge-ok' }[r]||'badge-info');
   const certBadge = c => ({ Valid:'badge-ok',Expiring:'badge-warn',Expired:'badge-danger' }[c]||'badge-info');
+  if (!assets.length) {
+    document.getElementById('disc-content').innerHTML = '<div class="loading-cell">No assets discovered yet.</div>';
+    return;
+  }
   document.getElementById('disc-content').innerHTML = `
     <table class="data-table">
       <thead><tr><th>Asset</th><th>URL</th><th>IPv4</th><th>Type</th><th>Owner</th><th>Risk</th><th>Cert</th><th>Key</th><th>Last Scan</th></tr></thead>
@@ -91,6 +95,10 @@ QSR._renderDiscAssets = function(assets) {
 };
 
 QSR._renderDiscDomains = function(domains) {
+  if (!domains.length) {
+    document.getElementById('disc-content').innerHTML = '<div class="loading-cell">No domain records available.</div>';
+    return;
+  }
   document.getElementById('disc-content').innerHTML = `
     <table class="data-table">
       <thead><tr><th>Domain</th><th>Detected</th><th>Registered</th><th>Registrar</th><th>Organization</th></tr></thead>
@@ -102,6 +110,10 @@ QSR._renderDiscDomains = function(domains) {
 };
 
 QSR._renderDiscSSL = function(ssls) {
+  if (!ssls.length) {
+    document.getElementById('disc-content').innerHTML = '<div class="loading-cell">No SSL certificate records available.</div>';
+    return;
+  }
   document.getElementById('disc-content').innerHTML = `
     <table class="data-table">
       <thead><tr><th>Fingerprint</th><th>Common Name</th><th>CA</th><th>Valid From</th><th>Detected</th></tr></thead>
@@ -114,6 +126,10 @@ QSR._renderDiscSSL = function(ssls) {
 };
 
 QSR._renderDiscIP = function(ips) {
+  if (!ips.length) {
+    document.getElementById('disc-content').innerHTML = '<div class="loading-cell">No IP subnet records available.</div>';
+    return;
+  }
   document.getElementById('disc-content').innerHTML = `
     <table class="data-table">
       <thead><tr><th>IP</th><th>Ports</th><th>Subnet</th><th>ASN</th><th>Netname</th><th>Location</th></tr></thead>
@@ -125,6 +141,10 @@ QSR._renderDiscIP = function(ips) {
 };
 
 QSR._renderDiscSoftware = function(sw) {
+  if (!sw.length) {
+    document.getElementById('disc-content').innerHTML = '<div class="loading-cell">No software fingerprint records available.</div>';
+    return;
+  }
   document.getElementById('disc-content').innerHTML = `
     <table class="data-table">
       <thead><tr><th>Product</th><th>Version</th><th>Type</th><th>Port</th><th>Host</th></tr></thead>
@@ -136,7 +156,7 @@ QSR._renderDiscSoftware = function(sw) {
 };
 
 QSR._runScan = async function() {
-  if (!window.QSR_SUPABASE_READY) { alert('Scan simulation: Demo Mode — connect Supabase for live scans.'); return; }
+  if (!window.QSR_SUPABASE_READY) { alert('Log in with a live Supabase session to run discovery scans.'); return; }
   const btn = event.target;
   btn.textContent = '⟳ Scanning...';
   btn.disabled = true;

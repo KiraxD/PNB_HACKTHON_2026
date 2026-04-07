@@ -218,7 +218,6 @@ window.submitReport = async function(type) {
 window.QSR_quickExport = async function(fmt) {
   var assets = [];
   if (window.QSR_DataLayer) { try { assets = await QSR_DataLayer.fetchAssets(); } catch(e){} }
-  if (!assets.length && window.QSR) assets = window.QSR.assets || [];
 
   if (fmt === 'csv') {
     var hdr = 'Name,URL,IPv4,Type,Owner,Key Size,Cert,QR Score,Risk,Last Scan';
@@ -295,16 +294,15 @@ window.QSR_generateAINarrative = async function() {
       assets = r[0]||[]; pqc = r[1]||{}; cbom = r[2]||{}; rating = r[3]||{};
     } catch(e) {}
   }
-  if (!assets.length && window.QSR) { assets = window.QSR.assets||[]; pqc = window.QSR.pqcPosture||{}; cbom = window.QSR.cbom||{}; rating = window.QSR.cyberRating||{}; }
 
   /* Build narrative */
-  var total  = assets.length || 128;
-  var crit   = assets.filter(function(a){ return a.risk==='Critical'; }).length || pqc.criticalApps || 14;
-  var expiring = assets.filter(function(a){ return a.cert==='Expiring'||a.cert==='Expired'; }).length || 5;
-  var weak   = cbom.weakCrypto || 23;
-  var qrs    = rating.enterpriseScore || 42;
-  var pqcPct = pqc.elitePct || 20;
-  var grade  = rating.grade || 'C+';
+  var total  = assets.length;
+  var crit   = assets.filter(function(a){ return a.risk==='Critical'; }).length || Number(pqc.criticalApps) || 0;
+  var expiring = assets.filter(function(a){ return a.cert==='Expiring'||a.cert==='Expired'; }).length;
+  var weak   = Number(cbom.weakCrypto) || 0;
+  var qrs    = Number(rating.enterpriseScore) || 0;
+  var pqcPct = Number(pqc.elitePct) || 0;
+  var grade  = rating.grade || 'Unassessed';
   var today  = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'});
   var urgency = crit > 10 ? 'CRITICAL — Immediate Action Required' : crit > 5 ? 'HIGH — Urgent Attention Needed' : 'MODERATE — Planned Remediation Advised';
 
@@ -380,7 +378,6 @@ window.QSR_generatePDF = async function(type, scope) {
       assets = r[0]||[]; cbomData = r[1]||{}; pqcData = r[2]||{}; ratingData = r[3]||{};
     } catch(e) {}
   }
-  if (!assets.length && window.QSR) assets = window.QSR.assets || [];
 
   if (typeof window.jspdf === 'undefined' && typeof window.jsPDF === 'undefined') {
     QSR_generateTextReport(type, scope, assets, cbomData, pqcData, ratingData); return;
@@ -405,8 +402,8 @@ window.QSR_generatePDF = async function(type, scope) {
   doc.text('Generated: '+dateStr, W/2, 124, {align:'center'});
   doc.setDrawColor(139,26,47); doc.setLineWidth(0.5); doc.line(M,135,W-M,135);
   doc.setFontSize(12); doc.setTextColor(255,255,255);
-  var qs = ratingData.enterpriseScore||(window.QSR&&window.QSR.summary?window.QSR.summary.avgRiskScore:42);
-  var stats = [['Total Assets',String(assets.length||(window.QSR&&window.QSR.summary?window.QSR.summary.assetCount:'—'))],['Avg QR Score',String(qs)+'/100'],['CBOM Vulns',String(cbomData.weakCrypto||(window.QSR&&window.QSR.summary?window.QSR.summary.cbomVulns:'—'))],['PQC-Ready',String(pqcData.elitePct!==undefined?pqcData.elitePct:(window.QSR&&window.QSR.summary?window.QSR.summary.pqcReady:30))+'%']];
+  var qs = Number(ratingData.enterpriseScore) || 0;
+  var stats = [['Total Assets',String(assets.length)],['Avg QR Score',String(qs)+'/100'],['CBOM Vulns',String(Number(cbomData.weakCrypto) || 0)],['PQC-Ready',String(pqcData.elitePct !== undefined ? pqcData.elitePct : 0)+'%']];
   stats.forEach(function(s,i){ var x=M+(i%2)*90,y=150+Math.floor(i/2)*20; doc.setFontSize(10);doc.setTextColor(170,170,170);doc.text(s[0],x,y);doc.setFontSize(18);doc.setFont('helvetica','bold');doc.setTextColor(200,149,42);doc.text(s[1],x,y+10);doc.setFont('helvetica','normal'); });
   doc.setFontSize(9);doc.setTextColor(100,100,120);doc.text('QSecure Radar v1.0 | Team REAL — KIIT | PSB Hackathon 2026',W/2,285,{align:'center'});
 
@@ -433,7 +430,7 @@ window.QSR_generatePDF = async function(type, scope) {
   doc.addPage();doc.setFillColor(240,242,248);doc.rect(0,0,W,297,'F');doc.setFillColor(139,26,47);doc.rect(0,0,W,3,'F');
   doc.setTextColor(26,26,46);doc.setFont('helvetica','bold');doc.setFontSize(18);doc.text('Post-Quantum Cryptography Assessment',M,22);
   doc.setFontSize(10);doc.setTextColor(100,100,120);doc.setFont('helvetica','normal');doc.text('FR9–FR12 — PQC Classification, Risk Scores & Migration Roadmap',M,30);
-  var pqcItems=[['Elite PQC (Tier 1)',String(pqcData.elitePct||20)+'%',[72,187,120]],['Standard (Tier 2)',String(pqcData.standardPct||30)+'%',[66,153,225]],['Legacy (Tier 3)',String(pqcData.legacyPct||30)+'%',[237,137,54]],['Critical (Tier 4)',String(pqcData.criticalPct||20)+'%',[229,62,62]]];
+  var pqcItems=[['Elite PQC (Tier 1)',String(Number(pqcData.elitePct) || 0)+'%',[72,187,120]],['Standard (Tier 2)',String(Number(pqcData.standardPct) || 0)+'%',[66,153,225]],['Legacy (Tier 3)',String(Number(pqcData.legacyPct) || 0)+'%',[237,137,54]],['Critical (Tier 4)',String(Number(pqcData.criticalPct) || 0)+'%',[229,62,62]]];
   rowY=44;
   pqcItems.forEach(function(p){doc.setFillColor(p[2][0],p[2][1],p[2][2]);doc.rect(M,rowY,4,7,'F');doc.setTextColor(26,26,46);doc.setFontSize(11);doc.setFont('helvetica','bold');doc.text(p[0],M+8,rowY+5);doc.setTextColor(p[2][0],p[2][1],p[2][2]);doc.setFontSize(14);doc.text(p[1],160,rowY+5);rowY+=14;});
   rowY+=6;doc.setDrawColor(139,26,47);doc.setLineWidth(0.3);doc.line(M,rowY,W-M,rowY);rowY+=10;
@@ -450,6 +447,6 @@ window.QSR_generatePDF = async function(type, scope) {
 
 /* ── Text fallback ───────────────────────────────────────────────── */
 window.QSR_generateTextReport = function(type, scope, assets, cbom, pqc, rating) {
-  var lines = ['=== QSecure Radar — Security Report ===','Type: '+(type||'General'),'Scope: '+(scope||'All Assets'),'Generated: '+new Date().toLocaleString('en-IN'),'','--- SUMMARY ---','Total Assets: '+(assets.length||'—'),'Avg QR Score: '+(rating.enterpriseScore||'—')+'/100','CBOM Vulnerabilities: '+(cbom.weakCrypto||'—'),'PQC-Ready: '+(pqc.elitePct||'—')+'%','','--- ASSET LIST ---'].concat((assets.slice(0,30)).map(function(a){return[a.name,a.type,(a.key||2048)+'-bit',a.cert,a.risk].join(' | ');}));
+  var lines = ['=== QSecure Radar — Security Report ===','Type: '+(type||'General'),'Scope: '+(scope||'All Assets'),'Generated: '+new Date().toLocaleString('en-IN'),'','--- SUMMARY ---','Total Assets: '+assets.length,'Avg QR Score: '+((Number(rating.enterpriseScore) || 0))+'/100','CBOM Vulnerabilities: '+(Number(cbom.weakCrypto) || 0),'PQC-Ready: '+(Number(pqc.elitePct) || 0)+'%','','--- ASSET LIST ---'].concat((assets.slice(0,30)).map(function(a){return[a.name,a.type,(a.key||2048)+'-bit',a.cert,a.risk].join(' | ');}));
   _download(lines.join('\n'),'QSecure-report-'+_today()+'.txt','text/plain');
 };

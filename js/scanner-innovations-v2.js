@@ -17,9 +17,10 @@ QSR._renderInsuranceCalc = function(result) {
   var now = new Date().getFullYear();
   var breakYears = result.keyAlg === 'ECDSA' ? (result.keySize >= 384 ? 16 : 10) :
     (result.keySize >= 4096 ? 20 : result.keySize >= 2048 ? 8 : 3);
-  /* PNB-scale transaction estimates per domain type */
-  var dailyTxnCr = result.host.includes('upi') ? 85 : result.host.includes('net') ? 42 :
-    result.host.includes('api') ? 28 : result.host.includes('fastag') ? 12 : 15;
+  /* Exposure is estimated from live posture rather than hardcoded business lines. */
+  var dailyTxnCr = result.qScore >= 76 ? 10 : result.qScore >= 51 ? 18 : result.qScore >= 26 ? 30 : 45;
+  if (result.pqcBucket === 'Critical') dailyTxnCr += 10;
+  if (result.techFingerprint && result.techFingerprint.findings && result.techFingerprint.findings.length >= 3) dailyTxnCr += 5;
   var exposureYears = Math.min(breakYears, 5);
   var totalExposureCr = Math.round(dailyTxnCr * 365 * exposureYears * 0.012); /* 1.2% breach impact */
   var premiumCr = (totalExposureCr * 0.045).toFixed(1); /* 4.5% premium rate */

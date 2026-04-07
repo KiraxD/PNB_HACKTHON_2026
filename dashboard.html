@@ -227,7 +227,7 @@ window.addEventListener('load', function() {
   if (window.QSR_SUPABASE_READY) {
     pill.className = 'connected'; pillText.textContent = 'Supabase Live';
   } else {
-    pill.className = 'demo'; pillText.textContent = 'Demo Mode';
+    pill.className = 'demo'; pillText.textContent = 'Supabase Offline';
   }
 
   /* Navigate to home */
@@ -246,23 +246,23 @@ window.addEventListener('load', function() {
         setTimeout(function() { window.location.href = 'index.html'; }, 1800);
         return;
       }
-      /* Sync live user metadata from Supabase auth */
+      /* Sync live user metadata from the profile table */
       var roleLabels = { soc:'SOC Analyst', admin:'Infrastructure Admin', compliance:'Compliance Officer' };
-      var authUser = session.user;
-      var liveUser = {
-        email: authUser.email,
-        role:  (authUser.user_metadata || {}).role || 'soc',
-        name:  (authUser.user_metadata || {}).full_name || authUser.email.split('@')[0],
-        id:    authUser.id
-      };
-      window._QSR_USER = liveUser;
-      sessionStorage.setItem('qsr_user', JSON.stringify(liveUser));
-      document.getElementById('sidebar-user-name').textContent = liveUser.name;
-      document.getElementById('sidebar-role-label').textContent = 'Role: ' + (roleLabels[liveUser.role] || 'SOC Analyst');
-      document.getElementById('header-user').textContent = 'Welcome, ' + liveUser.name + ' !';
-      if (liveUser.role === 'admin') {
-        document.querySelectorAll('.admin-only').forEach(function(el) { el.style.display = ''; });
-      }
+      window.QSR_Auth.syncSessionUser(session).then(function(liveUser) {
+        if (!liveUser) throw new Error('Could not resolve the live user profile.');
+        document.getElementById('sidebar-user-name').textContent = liveUser.name;
+        document.getElementById('sidebar-role-label').textContent = 'Role: ' + (roleLabels[liveUser.role] || 'SOC Analyst');
+        document.getElementById('header-user').textContent = 'Welcome, ' + liveUser.name + ' !';
+        if (liveUser.role === 'admin') {
+          document.querySelectorAll('.admin-only').forEach(function(el) { el.style.display = ''; });
+        }
+      }).catch(function(err) {
+        sessionStorage.removeItem('qsr_user');
+        if (window.QSR && window.QSR.toast) {
+          QSR.toast((err && err.message) || 'Could not load your profile. Redirecting to login...', 'warning', 3000);
+        }
+        setTimeout(function() { window.location.href = 'index.html'; }, 1800);
+      });
     });
 
     /* Listen for auth state changes (auto-redirect on sign-out/expiry) */

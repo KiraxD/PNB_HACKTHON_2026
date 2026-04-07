@@ -84,7 +84,7 @@
       <div id="panel-mfa" style="display:none;">
         <div style="text-align:center;margin-bottom:16px;">
           <div style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:700;color:#8b1a2f;">Multi-Factor Authentication</div>
-          <div style="font-size:13px;color:#888;margin-top:4px;">Enter the 6-digit code sent to your registered device</div>
+          <div style="font-size:13px;color:#888;margin-top:4px;">Enter the 6-digit code from your authenticator app or registered device</div>
         </div>
         <div class="otp-row" id="otp-boxes">
           <input class="otp-input" maxlength="1" type="text" autocomplete="one-time-code" oninput="otpMove(this,0)" onkeydown="otpBack(this,0,event)">
@@ -348,7 +348,8 @@ window.addEventListener('load', function() {
       pill.style.background='rgba(72,187,120,0.1)'; pill.style.borderColor='rgba(72,187,120,0.4)'; pill.style.color='#276749';
       dot.style.background='#48bb78'; text.textContent='Supabase Connected — Live Mode';
     } else {
-      text.textContent='Demo Mode — Supabase not configured';
+      pill.style.background='rgba(229,62,62,0.1)'; pill.style.borderColor='rgba(229,62,62,0.35)'; pill.style.color='#c53030';
+      dot.style.background='#e53e3e'; text.textContent='Supabase not connected';
     }
   }, 1000);
 
@@ -380,16 +381,13 @@ async function doSignIn() {
   if (window.QSR_Auth) {
     var result = await window.QSR_Auth.signIn(email, pwd);
     btn.disabled = false; btn.textContent = 'Sign In';
-    if (result.mfa) { showStatus('OTP sent to your registered device.','info'); switchPanel('mfa'); return; }
+    if (result.mfa) { showStatus(result.message || 'Enter your MFA code to continue.','info'); switchPanel('mfa'); return; }
     if (result.success) { showStatus('Redirecting...','success'); setTimeout(function(){ window.location.href = 'dashboard.html'; }, 600); return; }
     showStatus(result.error || 'Sign in failed.','error'); return;
   }
 
-  /* Demo mode fallback */
-  sessionStorage.setItem('qsr_user', JSON.stringify({ email:email, role:'soc', name:email.split('@')[0], demo:true }));
   btn.disabled = false; btn.textContent = 'Sign In';
-  showStatus('Demo mode — proceeding to dashboard.','success');
-  setTimeout(function(){ switchPanel('mfa'); }, 600);
+  showStatus('Supabase backend is not available. Configure the project connection first.','error');
 }
 
 /* ── Verify OTP ── */
@@ -403,11 +401,7 @@ async function doVerifyOTP() {
     showStatus(r.error || 'Invalid OTP.','error'); return;
   }
 
-  /* Demo: accept 123456 */
-  if (otp === '123456') { window.location.href = 'dashboard.html'; return; }
-  var email = document.getElementById('login-email').value;
-  sessionStorage.setItem('qsr_user', JSON.stringify({ email:email, role:'soc', name:email.split('@')[0], demo:true }));
-  window.location.href = 'dashboard.html';
+  showStatus('Supabase MFA is not available. Please complete the backend setup first.','error');
 }
 
 /* ── Sign Up ── */
@@ -429,11 +423,8 @@ async function doSignUp() {
     showStatus(r.error || 'Registration failed.','error'); return;
   }
 
-  await new Promise(function(r){ setTimeout(r, 800); });
   btn.disabled = false; btn.textContent = 'Create Account';
-  sessionStorage.setItem('qsr_user', JSON.stringify({ email:email, role:role, name:name, demo:true }));
-  showStatus('Demo account created! Signing you in...','success');
-  setTimeout(function(){ window.location.href = 'dashboard.html'; }, 1000);
+  showStatus('Supabase backend is not available. Configure the project connection first.','error');
 }
 
 /* ── Forgot Password ── */
@@ -455,10 +446,8 @@ async function doForgotPassword() {
     return;
   }
 
-  /* Demo mode */
-  await new Promise(function(r){ setTimeout(r, 800); });
   btn.disabled = false; btn.innerHTML = '&#9993; Send Reset Link';
-  showStatus('Demo: reset link would be sent to ' + email, 'info');
+  showStatus('Supabase backend is not available. Configure the project connection first.', 'error');
 }
 
 /* ── Magic Link ── */
@@ -480,10 +469,8 @@ async function doMagicLink() {
     return;
   }
 
-  /* Demo mode */
-  await new Promise(function(r){ setTimeout(r, 900); });
   btn.disabled = false; btn.innerHTML = '&#9889; Send Magic Link';
-  showStatus('Demo: magic link would be emailed to ' + email, 'info');
+  showStatus('Supabase backend is not available. Configure the project connection first.', 'error');
 }
 
 /* ── Reset Password (after clicking email link) ── */
@@ -511,12 +498,13 @@ async function doResetPassword() {
     }
   }
 
-  /* Demo mode */
-  await new Promise(function(r){ setTimeout(r, 700); });
   btn.disabled = false; btn.innerHTML = '&#128274; Update Password';
-  showStatus('Demo: password would be updated.', 'info');
+  showStatus('Supabase backend is not available. Configure the project connection first.', 'error');
 }
 </script>
 </body>
 </html>
+
+
+
 

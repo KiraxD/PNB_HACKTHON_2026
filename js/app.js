@@ -67,6 +67,18 @@ navigateTo = function(page) {
 };
 window.navigateTo = navigateTo;
 
+window.addEventListener('qsr:data-sync', function() {
+  var page = window._currentPage;
+  if (!page) return;
+  if (page === 'scanner') return;
+  if (!ROUTES[page]) return;
+  try {
+    navigateTo(page);
+  } catch (e) {
+    console.warn('[Router] Sync refresh failed:', e.message);
+  }
+});
+
 /* ======================================================
    HOME PAGE
    ====================================================== */
@@ -135,18 +147,20 @@ function kpiCard(label, value, color, desc) {
 function initHome() {
   /* Draw charts with static defaults first — will be updated with live data */
   QSR.drawBars('chart-home-risk', [
-    {label:'0-25 Critical',value:QSR.summary.criticalCount,color:'#e53e3e'},
-    {label:'26-50 High',   value:3, color:'#ed8936'},
-    {label:'51-75 Mod',    value:2, color:'#ecc94b'},
-    {label:'76-100 PQC',  value:3, color:'#48bb78'}
+    {label:'0-25 Critical',value:0,color:'#e53e3e'},
+    {label:'26-50 High',   value:0,color:'#ed8936'},
+    {label:'51-75 Mod',    value:0,color:'#ecc94b'},
+    {label:'76-100 PQC',   value:0,color:'#48bb78'}
   ]);
   QSR.drawDonut('chart-home-pqc', [
-    {label:'PQC-Ready', value:QSR.summary.pqcReady,       color:'#48bb78'},
-    {label:'At Risk',   value:100-QSR.summary.pqcReady,   color:'#e53e3e'}
-  ], QSR.summary.pqcReady + '%', 'Ready');
+    {label:'PQC-Ready', value:0, color:'#48bb78'},
+    {label:'At Risk',   value:0, color:'#e53e3e'}
+  ], '0%', 'Ready');
   QSR.drawBars('chart-home-tls', [
-    {label:'TLS 1.3',value:6,color:'#48bb78'},{label:'TLS 1.2',value:3,color:'#ecc94b'},
-    {label:'TLS 1.1',value:1,color:'#ed8936'},{label:'TLS 1.0',value:2,color:'#e53e3e'}
+    {label:'TLS 1.3',value:0,color:'#48bb78'},
+    {label:'TLS 1.2',value:0,color:'#ecc94b'},
+    {label:'TLS 1.1',value:0,color:'#ed8936'},
+    {label:'TLS 1.0',value:0,color:'#e53e3e'}
   ]);
 
   if (!window.QSR_DataLayer) return;
@@ -179,25 +193,22 @@ function initHome() {
     var pqc     = results[2] || {};
     var cbom    = results[3] || {};
 
-    /* Helper to set KPI card value */
-    function setKPI(idx, val) {
-      var cards = document.querySelectorAll('[title]');
-      /* Find KPI cards by title attr (from kpiCard desc param) */
-      var kpiWrappers = document.querySelectorAll('.fade-in > div:first-child > div');
-      if (!kpiWrappers.length) return;
-      var card = kpiWrappers[idx];
-      if (card) {
-        var valEl = card.querySelector('div:nth-child(2)');
-        if (valEl) valEl.textContent = val;
-      }
-    }
-
-    var assetCount    = assets.length || QSR.summary.assetCount;
-    var avgQR         = rating.enterpriseScore || QSR.summary.avgRiskScore;
-    var cbomVulns     = cbom.weakCrypto   || QSR.summary.cbomVulns;
-    var pqcReadyPct   = pqc.elitePct !== undefined ? pqc.elitePct : QSR.summary.pqcReady;
-    var expiringCerts = assets.filter(function(a){ return a.cert === 'Expiring' || a.cert === 'Expired'; }).length || QSR.summary.expiringCerts;
-    var criticalCount = (pqc.criticalApps !== undefined ? pqc.criticalApps : QSR.summary.criticalCount);
+    var assetCount    = assets.length;
+    var avgQR         = Number(rating.enterpriseScore) || 0;
+    var cbomVulns     = Number(cbom.weakCrypto) || 0;
+    var pqcReadyPct   = pqc.elitePct !== undefined ? pqc.elitePct : 0;
+    var expiringCerts = assets.filter(function(a){ return a.cert === 'Expiring' || a.cert === 'Expired'; }).length;
+    var criticalCount = (pqc.criticalApps !== undefined ? pqc.criticalApps : 0);
+    var riskCounts = {
+      critical: assets.filter(function(a) { return (a.qrScore || 0) <= 25; }).length,
+      high: assets.filter(function(a) { var s = a.qrScore || 0; return s >= 26 && s <= 50; }).length,
+      moderate: assets.filter(function(a) { var s = a.qrScore || 0; return s >= 51 && s <= 75; }).length,
+      ready: assets.filter(function(a) { return (a.qrScore || 0) >= 76; }).length
+    };
+    var bucketCounts = {
+      ready: assets.filter(function(a) { return a.pqcBucket === 'Elite-PQC'; }).length,
+      atRisk: assets.filter(function(a) { return a.pqcBucket !== 'Elite-PQC'; }).length
+    };
 
     /* Re-render the entire KPI row with fresh live data */
     var kpiRow = document.querySelector('.fade-in > div:first-child');
@@ -213,19 +224,16 @@ function initHome() {
 
     /* Update PQC donut chart with live data */
     QSR.drawDonut('chart-home-pqc', [
-      {label:'PQC-Ready', value: pqcReadyPct,     color:'#48bb78'},
-      {label:'At Risk',   value: 100-pqcReadyPct, color:'#e53e3e'}
+      {label:'PQC-Ready', value: bucketCounts.ready, color:'#48bb78'},
+      {label:'At Risk',   value: bucketCounts.atRisk, color:'#e53e3e'}
     ], pqcReadyPct + '%', 'Ready');
 
-    /* Update risk bar chart with live breakdown */
-    if (pqc.criticalPct !== undefined) {
-      QSR.drawBars('chart-home-risk', [
-        {label:'0-25 Critical', value: pqc.criticalPct || criticalCount, color:'#e53e3e'},
-        {label:'26-50 High',    value: pqc.legacyPct   || 3,             color:'#ed8936'},
-        {label:'51-75 Mod',     value: pqc.standardPct || 2,             color:'#ecc94b'},
-        {label:'76-100 PQC',    value: pqc.elitePct    || 3,             color:'#48bb78'}
-      ]);
-    }
+    QSR.drawBars('chart-home-risk', [
+      {label:'0-25 Critical', value: riskCounts.critical, color:'#e53e3e'},
+      {label:'26-50 High',    value: riskCounts.high, color:'#ed8936'},
+      {label:'51-75 Mod',     value: riskCounts.moderate, color:'#ecc94b'},
+      {label:'76-100 PQC',    value: riskCounts.ready, color:'#48bb78'}
+    ]);
   }).catch(function(e) {
     console.warn('[Home] Live KPI fetch error:', e.message);
   });
@@ -262,9 +270,10 @@ function pageAssetInventory() {
     '<div class="search-wrap" style="flex:1;min-width:200px;margin:0;"><span class="search-icon">&#128269;</span><input class="search-input" id="inv-search" placeholder="Search name, URL, IP..." oninput="filterInventory()"></div>' +
     '<select id="inv-risk-filter" class="form-select" style="width:140px;" onchange="filterInventory()"><option value="">All Risks</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option></select>' +
     '<select id="inv-cert-filter" class="form-select" style="width:140px;" onchange="filterInventory()"><option value="">All Certs</option><option>Valid</option><option>Expiring</option><option>Expired</option></select>' +
+    '<select id="inv-bucket-filter" class="form-select" style="width:150px;" onchange="filterInventory()"><option value="">All Buckets</option><option>Elite-PQC</option><option>Standard</option><option>Legacy</option><option>Critical</option></select>' +
     '</div>' +
-    '<div class="table-wrap"><table class="data-table"><thead><tr><th>Asset Name</th><th>URL</th><th>IPv4</th><th>Type</th><th>Owner</th><th>Key Size</th><th>Cert</th><th>QR Score</th><th>Risk</th><th>Last Scan</th></tr></thead>' +
-    '<tbody id="inv-tbody"><tr><td colspan="10" style="text-align:center;padding:24px;color:#aaa;">Loading assets...</td></tr></tbody>' +
+    '<div class="table-wrap"><table class="data-table"><thead><tr><th>Asset Name</th><th>URL</th><th>IPv4</th><th>Type</th><th>Owner</th><th>Key Size</th><th>Cert</th><th>PQC Bucket</th><th>QR Score</th><th>Risk</th><th>Last Scan</th></tr></thead>' +
+    '<tbody id="inv-tbody"><tr><td colspan="11" style="text-align:center;padding:24px;color:#aaa;">Loading assets...</td></tr></tbody>' +
     '</table></div></div>';
 }
 
@@ -272,15 +281,20 @@ var _allInventory = [];
 
 function initAssetInventory() {
   QSR.drawDonut('chart-inv-types', [
-    {label:'Web Apps',value:42,color:'#4299e1'},{label:'APIs',value:26,color:'#48bb78'},
-    {label:'Servers',value:37,color:'#ed8936'},{label:'VPN',value:7,color:'#e53e3e'},{label:'Internal',value:16,color:'#ecc94b'}
-  ], '128', 'Assets');
+    {label:'Web Apps',value:0,color:'#4299e1'},
+    {label:'APIs',value:0,color:'#48bb78'},
+    {label:'Servers',value:0,color:'#ed8936'},
+    {label:'VPN',value:0,color:'#e53e3e'},
+    {label:'Internal',value:0,color:'#ecc94b'}
+  ], '0', 'Assets');
   QSR.drawBars('chart-inv-risk', [
-    {label:'Critical',value:14,color:'#e53e3e'},{label:'High',value:28,color:'#ed8936'},
-    {label:'Medium',value:52,color:'#ecc94b'},{label:'Low',value:34,color:'#48bb78'}
+    {label:'Critical',value:0,color:'#e53e3e'},
+    {label:'High',value:0,color:'#ed8936'},
+    {label:'Medium',value:0,color:'#ecc94b'},
+    {label:'Low',value:0,color:'#48bb78'}
   ]);
 
-  var dataSource = window.QSR_DataLayer ? window.QSR_DataLayer.fetchAssets() : Promise.resolve(QSR.assets || []);
+  var dataSource = window.QSR_DataLayer ? window.QSR_DataLayer.fetchAssets() : Promise.resolve([]);
   dataSource.then(function(assets) {
     _allInventory = assets;
     var setEl = function(id, v){ var el = document.getElementById(id); if(el) el.textContent = v; };
@@ -290,6 +304,19 @@ function initAssetInventory() {
     setEl('kpi-servers',  assets.filter(function(a){ return a.type && a.type.includes('Server'); }).length);
     setEl('kpi-expiring', assets.filter(function(a){ return a.cert === 'Expiring' || a.cert === 'Expired'; }).length);
     setEl('kpi-highrisk', assets.filter(function(a){ return a.risk === 'Critical' || a.risk === 'High'; }).length);
+    QSR.drawDonut('chart-inv-types', [
+      {label:'Web Apps',value:assets.filter(function(a){ return a.type === 'Web App'; }).length,color:'#4299e1'},
+      {label:'APIs',value:assets.filter(function(a){ return a.type === 'API Gateway'; }).length,color:'#48bb78'},
+      {label:'Servers',value:assets.filter(function(a){ return a.type && a.type.includes('Server'); }).length,color:'#ed8936'},
+      {label:'VPN',value:assets.filter(function(a){ return a.type && a.type.includes('VPN'); }).length,color:'#e53e3e'},
+      {label:'Internal',value:assets.filter(function(a){ return a.type && a.type.includes('Internal'); }).length,color:'#ecc94b'}
+    ], String(assets.length), 'Assets');
+    QSR.drawBars('chart-inv-risk', [
+      {label:'Critical',value:assets.filter(function(a){ return a.risk === 'Critical'; }).length,color:'#e53e3e'},
+      {label:'High',value:assets.filter(function(a){ return a.risk === 'High'; }).length,color:'#ed8936'},
+      {label:'Medium',value:assets.filter(function(a){ return a.risk === 'Medium'; }).length,color:'#ecc94b'},
+      {label:'Low',value:assets.filter(function(a){ return a.risk === 'Low'; }).length,color:'#48bb78'}
+    ]);
     renderInventoryTable(assets);
   });
 }
@@ -298,11 +325,12 @@ function renderInventoryTable(assets) {
   var tbody = document.getElementById('inv-tbody');
   if (!tbody) return;
   if (!assets || !assets.length) {
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:#aaa;">No assets found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:#aaa;">No assets found.</td></tr>';
     return;
   }
   var riskCls = {Critical:'badge-critical',High:'badge-high',Medium:'badge-medium',Low:'badge-low'};
   var certCls = {Valid:'badge-valid',Expiring:'badge-expiring',Expired:'badge-expired'};
+  var bucketCls = {'Elite-PQC':'badge-ok',Standard:'badge-info',Legacy:'badge-warn',Critical:'badge-danger'};
   tbody.innerHTML = assets.map(function(a) {
     var score = a.qrScore !== undefined ? a.qrScore : (a.risk === 'Critical' ? 15 : a.risk === 'High' ? 35 : a.risk === 'Medium' ? 55 : 80);
     var scoreColor = score >= 76 ? '#48bb78' : score >= 51 ? '#ecc94b' : score >= 26 ? '#ed8936' : '#e53e3e';
@@ -316,6 +344,7 @@ function renderInventoryTable(assets) {
       '<td style="font-size:12px;">' + (a.owner||'—') + '</td>' +
       '<td style="font-weight:700;color:' + (weakKey?'#e53e3e':'#48bb78') + ';">' + keyLen + '-bit' + (weakKey?' &#9888;':'') + '</td>' +
       '<td><span class="badge ' + (certCls[a.cert]||'badge-valid') + '">' + (a.cert||'Valid') + '</span></td>' +
+      '<td><span class="badge ' + (bucketCls[a.pqcBucket]||'badge-info') + '">' + (a.pqcBucket||'Unknown') + '</span></td>' +
       '<td><span style="font-family:Rajdhani;font-size:18px;font-weight:700;color:' + scoreColor + ';">' + score + '</span><span style="font-size:10px;color:#aaa;">/100</span></td>' +
       '<td><span class="badge ' + (riskCls[a.risk]||'badge-low') + '">' + (a.risk||'Low') + '</span></td>' +
       '<td style="font-size:11px;color:#888;">' + (a.lastScan||'Never') + '</td>' +
@@ -327,9 +356,10 @@ window.filterInventory = function() {
   var q = (document.getElementById('inv-search')?.value||'').toLowerCase();
   var r = document.getElementById('inv-risk-filter')?.value||'';
   var c = document.getElementById('inv-cert-filter')?.value||'';
+  var b = document.getElementById('inv-bucket-filter')?.value||'';
   renderInventoryTable(_allInventory.filter(function(a) {
     return (!q || ((a.name||'')+(a.url||'')+(a.ipv4||'')).toLowerCase().includes(q)) &&
-           (!r || a.risk === r) && (!c || a.cert === c);
+           (!r || a.risk === r) && (!c || a.cert === c) && (!b || a.pqcBucket === b);
   }));
 };
 

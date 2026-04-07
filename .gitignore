@@ -12,6 +12,10 @@ desktop.ini
 .vscode/
 *.swp
 *.swo
+.agents/
+.claude/
+.windsurf/
+skills-lock.json
 
 # Logs
 *.log

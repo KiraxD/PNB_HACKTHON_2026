@@ -80,7 +80,7 @@ QSR.pages.cbom = async function(container) {
 
   /* Load data */
   var dl = window.QSR_DataLayer;
-  var cbom = dl ? await dl.fetchCBOM() : (window.QSR.cbom || {});
+  var cbom = dl ? await dl.fetchCBOM() : {};
   var perApp = cbom.perApp || [];
 
   /* KPI with count-up */
