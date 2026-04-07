@@ -580,8 +580,8 @@ QSR.runTLSScan = async function () {
   try {
     QSR._setStage(0, 10, `Resolving ${host} via Cloudflare DoH + MX + NS + CAA + TXT records...`);
 
-    /* Run 8 sources in parallel: A + AAAA + MX + NS + CAA + TXT + crt.sh + headers */
-    var [dnsData, dnsAAAA, dnsMX, dnsNS, dnsCAA, dnsTXT, crtData, headerData] = await Promise.all([
+    /* Run 9 sources in parallel: A + AAAA + MX + NS + CAA + TXT + crt.sh + headers + TLS probe */
+    var [dnsData, dnsAAAA, dnsMX, dnsNS, dnsCAA, dnsTXT, crtData, headerData, tlsProbeData] = await Promise.allSettled([
       QSR._fetchDNS(host, 'A'),
       QSR._fetchDNS(host, 'AAAA'),
       QSR._fetchDNS(host, 'MX'),
@@ -589,8 +589,19 @@ QSR.runTLSScan = async function () {
       QSR._fetchDNS(host, 'CAA'),
       QSR._fetchDNS('_dmarc.' + host, 'TXT'),
       QSR._fetchCRT(host),
-      QSR._fetchHeaders(host)
+      QSR._fetchHeaders(host),
+      QSR._fetchTLSProbe(host)
     ]);
+    /* Extract values from settled promises */
+    dnsData = dnsData.status === 'fulfilled' ? dnsData.value : { ok: false, ip: null, ips: [] };
+    dnsAAAA = dnsAAAA.status === 'fulfilled' ? dnsAAAA.value : { ok: false, ips: [] };
+    dnsMX = dnsMX.status === 'fulfilled' ? dnsMX.value : { ok: false, ips: [] };
+    dnsNS = dnsNS.status === 'fulfilled' ? dnsNS.value : { ok: false, ips: [] };
+    dnsCAA = dnsCAA.status === 'fulfilled' ? dnsCAA.value : { ok: false, ips: [] };
+    dnsTXT = dnsTXT.status === 'fulfilled' ? dnsTXT.value : { ok: false, ips: [] };
+    crtData = crtData.status === 'fulfilled' ? crtData.value : { certs: [], count: 0 };
+    headerData = headerData.status === 'fulfilled' ? headerData.value : { ok: false, headers: {} };
+    tlsProbeData = tlsProbeData.status === 'fulfilled' ? tlsProbeData.value : { ok: false };
     dnsData.aaaa = (dnsAAAA.ips || []);
     dnsData.mx = (dnsMX.ips || []);
     dnsData.ns = (dnsNS.ips || []);
@@ -606,7 +617,7 @@ QSR.runTLSScan = async function () {
     QSR._setStage(3, 80, 'Analysing security headers + building CBOM...');
     await QSR._delay(200);
 
-    var result = QSR._buildScanResult(host, dnsData, crtData, headerData);
+    var result = QSR._buildScanResult(host, dnsData, crtData, headerData, tlsProbeData);
 
     QSR._setStage(4, 95, 'Computing quantum risk score...');
     await QSR._delay(250);
@@ -923,6 +934,7 @@ QSR._fetchTLSProbe = async function (host) {
       san: d.san || [],
       alpn: d.alpn || null,
       protocol: d.protocol || null,
+      headers: d.headers || {},
       scan_ms: d.scan_ms || 0,
       source: 'QSecure TLS Scanner (Edge Function)'
     };
@@ -1033,7 +1045,13 @@ QSR._buildScanResult = function (host, dnsData, crtData, headerData, tlsProbeDat
   var subject = crtSubject ? 'CN=' + crtSubject : 'CN=' + host;
 
   /* ── 2. Real data from live HTTP headers ─────────────────── */
-  var hdrs = (headerData && headerData.headers) ? headerData.headers : {};
+  /* PRIORITY: Use Edge Function headers first (more reliable), fallback to CORS proxy */
+  var hdrs = {};
+  if (tlsProbeData && tlsProbeData.headers) {
+    hdrs = tlsProbeData.headers;
+  } else if (headerData && headerData.headers) {
+    hdrs = headerData.headers;
+  }
   var techFingerprint = (headerData && headerData.techFingerprint) ? headerData.techFingerprint : { findings: [], confidence: 0, title: host };
   var server = hdrs['server'] || hdrs['x-powered-by'] || null;
   var hsts = hdrs['strict-transport-security'] || null;
