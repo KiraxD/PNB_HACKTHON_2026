@@ -842,51 +842,46 @@ QSR.runCompare = async function () {
   }
 };
 
-/* ── Source 4: TLS Scanner via SSL Labs API (Supabase Edge Function blocked by CORS) ───── */
+/* ── Source 4: Security Headers via Vercel API Proxy ───── */
 QSR._fetchTLSProbe = async function (host) {
-  var cacheKey = 'tls_' + host;
+  var cacheKey = 'headers_' + host;
+  
+  // Check cache first
+  if (window._qsrCache && window._qsrCache[cacheKey]) {
+    return window._qsrCache[cacheKey];
+  }
   
   try {
-    // Try Mozilla Observatory API (public, no CORS issues)
-    var r = await fetch('https://api.observatory.mozilla.org/api/v1/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ host: host, rescan: false, hidden: false }),
+    // Use Vercel API route to fetch headers (server-side, no CORS issues)
+    var r = await fetch('/api/get-headers?host=' + encodeURIComponent(host), {
+      method: 'GET',
       signal: AbortSignal.timeout(12000)
     });
     
     if (r.ok) {
       var d = await r.json();
-      console.log('[TLS Scanner] Mozilla Observatory Response:', d);
+      console.log('[Security Headers]', host, 'Headers found:', Object.keys(d.headers).length);
       
-      if (d.tests) {
-        var hdrs = {};
-        Object.entries(d.tests).forEach(function([key, test]) {
-          if (key.includes('header') && test.pass) {
-            if (key.includes('hsts')) hdrs['strict-transport-security'] = 'max-age=31536000';
-            if (key.includes('csp')) hdrs['content-security-policy'] = 'present';
-            if (key.includes('x-frame')) hdrs['x-frame-options'] = 'DENY';
-            if (key.includes('x-content-type')) hdrs['x-content-type-options'] = 'nosniff';
-            if (key.includes('referrer')) hdrs['referrer-policy'] = 'strict-origin-when-cross-origin';
-          }
-        });
-        
-        var res = {
-          ok: true,
-          headers: hdrs,
-          scan_ms: 0,
-          source: 'Mozilla Observatory API'
-        };
-        window._qsrCache[cacheKey] = res;
-        return res;
-      }
+      var res = {
+        ok: true,
+        headers: d.headers || {},
+        statusCode: d.statusCode,
+        source: 'Direct HEAD Request (Vercel Proxy)'
+      };
+      
+      // Cache the result
+      if (!window._qsrCache) window._qsrCache = {};
+      window._qsrCache[cacheKey] = res;
+      return res;
     }
   } catch (e) {
-    console.warn('[TLS Scanner Mozilla]', e.message);
+    console.warn('[Security Headers] Error:', e.message);
   }
   
-  // Fallback: Return empty headers (scanner will continue with other sources)
-  if (window._qsrCache[cacheKey]) return window._qsrCache[cacheKey];
+  // Return cached result if available, otherwise empty
+  if (window._qsrCache && window._qsrCache[cacheKey]) {
+    return window._qsrCache[cacheKey];
+  }
   return { ok: false, headers: {} };
 };
 
