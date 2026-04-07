@@ -763,22 +763,11 @@ QSR._fetchCRT = async function (host) {
   }
 };
 
-/* ── Source 3: Live HTTP headers via CORS proxy ──────────────── */
+/* ── Source 3: Live HTTP headers via Edge Function (deprecated CORS proxies removed) ──────────────── */
 QSR._fetchHeaders = async function (host) {
-  var cacheKey = 'hdrs_' + host;
-  var proxies = [
-    'https://api.allorigins.win/get?url=' + encodeURIComponent('https://' + host + '/'),
-    'https://corsproxy.io/?url=' + encodeURIComponent('https://' + host + '/')
-  ];
-  for (var proxy of proxies) {
-    try {
-      var r = await fetch(proxy, { signal: AbortSignal.timeout(8000) });
-      if (!r.ok) continue;
-
-      var rawText = await r.text();
-      var parsed = null;
-      var hdrs = {};
-      var body = '';
+  /* CORS proxies are unreliable. Headers now come from Edge Function only. */
+  return { ok: false, headers: {} };
+};
       var status = r.status || 200;
       var ct = r.headers.get('content-type') || '';
 
