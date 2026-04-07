@@ -27,6 +27,7 @@ interface TLSScanResult {
   san: string[];
   protocol: string | null;
   alpn: string | null;
+  headers: Record<string, string>;
   error: string | null;
   scan_ms: number;
 }
@@ -37,8 +38,39 @@ async function scanTLS(host: string, port = 443): Promise<TLSScanResult> {
     host, port, tls_version: null, cipher_suite: null,
     key_algorithm: null, key_size: null, subject: null, issuer: null,
     not_before: null, not_after: null, days_left: null, serial: null,
-    san: [], protocol: null, alpn: null, error: null, scan_ms: 0
+    san: [], protocol: null, alpn: null, headers: {}, error: null, scan_ms: 0
   };
+
+  // ALWAYS fetch security headers (not just as fallback)
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    const resp = await fetch(`https://${host}/`, {
+      method: 'HEAD',
+      signal: ctrl.signal,
+      redirect: 'follow'
+    });
+    clearTimeout(timer);
+
+    result.protocol = resp.headers.get('alt-svc')?.includes('h3') ? 'h3/TLS1.3' : 'https';
+
+    const hsts = resp.headers.get('strict-transport-security');
+    if (hsts) {
+      const maxAge = hsts.match(/max-age=(\d+)/);
+      if (maxAge && parseInt(maxAge[1]) > 31536000) {
+        result.tls_version = '1.3';
+      } else {
+        result.tls_version = '1.2';
+      }
+    }
+
+    // Extract ALL security headers ALWAYS
+    const hdrs: Record<string, string> = {};
+    resp.headers.forEach((v, k) => { hdrs[k.toLowerCase()] = v; });
+    (result as any).headers = hdrs;
+  } catch (headerErr) {
+    // Silent fail - will try TLS handshake instead
+  }
 
   try {
     // Perform real TLS handshake using Deno native API
@@ -91,66 +123,20 @@ async function scanTLS(host: string, port = 443): Promise<TLSScanResult> {
           .map((s: string) => s.replace(/^DNS:/i, '').trim())
           .filter(Boolean);
       }
-
-      // Key algorithm and size from public key
-      if (cert.publicKey) {
-        const keyInfo = cert.publicKey;
-        if (keyInfo.algorithm) {
-          const alg = keyInfo.algorithm;
-          if (alg.name === 'RSASSA-PKCS1-v1_5' || alg.name === 'RSA-PSS' || alg.name?.includes('RSA')) {
-            result.key_algorithm = 'RSA';
-            result.key_size = alg.modulusLength || null;
-          } else if (alg.name === 'ECDSA' || alg.name?.includes('EC')) {
-            result.key_algorithm = 'ECDSA';
-            result.key_size = alg.namedCurve === 'P-384' ? 384 :
-                              alg.namedCurve === 'P-521' ? 521 : 256;
-          } else if (alg.name === 'Ed25519') {
-            result.key_algorithm = 'Ed25519';
-            result.key_size = 256;
-          }
-        }
-      }
     }
 
     conn.close();
+    result.error = null;
   } catch (e) {
-    // Fallback: use HTTP HEAD request to get what we can
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 8000);
-      const resp = await fetch(`https://${host}/`, {
-        method: 'HEAD',
-        signal: ctrl.signal,
-        redirect: 'follow'
-      });
-      clearTimeout(timer);
-
-      result.protocol = resp.headers.get('alt-svc')?.includes('h3') ? 'h3/TLS1.3' : 'https';
-
-      const hsts = resp.headers.get('strict-transport-security');
-      if (hsts) {
-        const maxAge = hsts.match(/max-age=(\d+)/);
-        if (maxAge && parseInt(maxAge[1]) > 31536000) {
-          result.tls_version = '1.3';
-        } else {
-          result.tls_version = '1.2';
-        }
-      }
-
-      // Extract all security headers
-      const hdrs: Record<string, string> = {};
-      resp.headers.forEach((v, k) => { hdrs[k.toLowerCase()] = v; });
-      (result as any).headers = hdrs;
-
-      result.error = 'TLS handshake details limited, used HTTP probe';
-    } catch (fetchErr) {
-      result.error = 'Scan failed: ' + (e as Error).message;
+    if (!result.error) {
+      result.error = 'TLS handshake failed: ' + (e as Error).message;
     }
   }
 
   result.scan_ms = Date.now() - start;
   return result;
 }
+            result.key_algorithm = 'RSA';
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {

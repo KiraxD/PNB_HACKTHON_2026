@@ -918,6 +918,13 @@ QSR._fetchTLSProbe = async function (host) {
     });
     if (!r.ok) throw new Error('Edge fn returned ' + r.status);
     var d = await r.json();
+    
+    // DEBUG: Log what headers we received
+    console.log('[TLS Scanner] Response:', d);
+    if (d.headers) {
+      console.log('[TLS Scanner] Headers found:', Object.keys(d.headers));
+    }
+    
     if (d.error && !d.tls_version) throw new Error(d.error);
     var res = {
       ok: true,
