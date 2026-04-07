@@ -45,13 +45,7 @@ QSR.pages.scanner = function(container) {
         <button class="btn-scan" onclick="QSR.runCompare()">▶ COMPARE</button>
       </div>
 
-      <!-- Quick chips -->
-      <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-        <span style="font-size:11px;color:#555;letter-spacing:1px;">QUICK SCAN:</span>
-        ${['www.netpnb.com','api.pnb.co.in','upi.pnb.co.in','fastag.pnbindia.in','netpnb.com'].map(h =>
-          `<button class="chip-btn" onclick="document.getElementById('scan-input').value='${h}';QSR.runTLSScan()">${h}</button>`
-        ).join('')}
-      </div>
+
     </div>
   </div>
 
