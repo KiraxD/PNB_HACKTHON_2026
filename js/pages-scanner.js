@@ -842,9 +842,9 @@ QSR.runCompare = async function () {
   }
 };
 
-/* ── Source 4: Comprehensive TLS Scanner (Certificate + Headers + Ciphers) ───── */
+/* ── Source 4: Advanced Cryptographic Threat Analysis (Internal Analysis Engine) ───── */
 QSR._fetchTLSProbe = async function (host) {
-  var cacheKey = 'tls_' + host;
+  var cacheKey = 'crypto_' + host;
   
   // Check cache first
   if (window._qsrCache && window._qsrCache[cacheKey]) {
@@ -852,36 +852,33 @@ QSR._fetchTLSProbe = async function (host) {
   }
   
   try {
-    // Use comprehensive TLS scanner (certificate, headers, ciphers, TLS version, SSL Labs grade)
-    var r = await fetch('/api/scan-tls?host=' + encodeURIComponent(host), {
-      method: 'GET',
-      signal: AbortSignal.timeout(45000)
-    });
+    // Use internal cryptographic analyzer (no external APIs)
+    var [cryptoData, threatData, dnsData] = await Promise.allSettled([
+      fetch('/api/crypto-analyzer?host=' + encodeURIComponent(host)).then(r => r.ok ? r.json() : null),
+      fetch('/api/dns-analyzer?host=' + encodeURIComponent(host)).then(r => r.ok ? r.json() : null),
+      fetch('/api/get-headers?host=' + encodeURIComponent(host)).then(r => r.ok ? r.json() : null)
+    ]);
     
-    if (r.ok) {
-      var d = await r.json();
-      console.log('[TLS Scanner]', host, 'Certificate:', d.certificate ? 'Found' : 'Not found', 'Headers:', Object.keys(d.headers || {}).length, 'TLS:', d.tlsVersion);
-      
-      var tlsVersion = d.tlsVersion ? d.tlsVersion.replace('TLSv', '') : '1.2';
-      var keySize = d.certificate && d.certificate.bits ? d.certificate.bits : 2048;
-      var keyAlg = 'RSA';
-      
-      // Parse certificate subject for key algorithm
-      if (d.certificate && d.certificate.subject) {
-        // Try to detect key algorithm from certificate
-        if (d.certificate.subject.includes && d.certificate.subject.includes('ECDSA')) keyAlg = 'ECDSA';
-      }
+    var c = cryptoData.status === 'fulfilled' ? cryptoData.value : null;
+    var t = threatData.status === 'fulfilled' ? threatData.value : null;
+    var d = dnsData.status === 'fulfilled' ? dnsData.value : null;
+    
+    if (c) {
+      console.log('[Crypto Analyzer]', host, 'Threat Score:', c.threatScore, 'PQC Ready:', c.pqcAssessment.readinessScore);
       
       var res = {
         ok: true,
-        headers: d.headers || {},
-        tlsVersion: tlsVersion,
-        keySize: keySize,
-        keyAlg: keyAlg,
-        cipher: d.cipher || {},
-        sslLabsGrade: d.sslLabsGrade,
-        certificate: d.certificate,
-        source: 'Comprehensive TLS Scan (Node.js TLS + SSL Labs)'
+        headers: d ? d.headers : {},
+        certificate: c.certificate,
+        tlsVersion: c.certificate.tlsVersion,
+        keySize: c.certificate.bits,
+        keyAlg: c.certificate.publicKeyAlgorithm,
+        threatScore: c.threatScore,
+        cryptoAnalysis: c,
+        pqcAssessment: c.pqcAssessment,
+        quantumTimeline: c.quantumRiskTimeline,
+        dnsAnalysis: t ? t.dnsRecords : null,
+        source: 'Internal Cryptographic Threat Engine v2.0'
       };
       
       // Cache the result
@@ -890,7 +887,7 @@ QSR._fetchTLSProbe = async function (host) {
       return res;
     }
   } catch (e) {
-    console.warn('[TLS Scanner]', host, 'Error:', e.message);
+    console.warn('[Crypto Analyzer]', host, 'Error:', e.message);
   }
   
   // Return cached result if available, otherwise empty
@@ -901,28 +898,18 @@ QSR._fetchTLSProbe = async function (host) {
 };
 
 QSR._fetchOneScan = async function (host) {
-  var [dnsData, crtData, headerData, tlsProbeData, dnsSec, threatIntel] = await Promise.allSettled([
+  var [dnsData, crtData, tlsProbeData] = await Promise.allSettled([
     QSR._fetchDNS(host),
     QSR._fetchCRT(host),
-    QSR._fetchHeaders(host),
-    QSR._fetchTLSProbe(host),
-    fetch('/api/dns-security?host=' + encodeURIComponent(host)).then(r => r.ok ? r.json() : null),
-    fetch('/api/threat-intelligence?host=' + encodeURIComponent(host)).then(r => r.ok ? r.json() : null)
+    QSR._fetchTLSProbe(host)
   ]);
+  
   /* Extract values from settled promises */
   dnsData = dnsData.status === 'fulfilled' ? dnsData.value : { ok: false, ip: null, ips: [] };
   crtData = crtData.status === 'fulfilled' ? crtData.value : { certs: [], count: 0 };
-  headerData = headerData.status === 'fulfilled' ? headerData.value : { ok: false, headers: {} };
   tlsProbeData = tlsProbeData.status === 'fulfilled' ? tlsProbeData.value : { ok: false };
-  dnsSec = dnsSec.status === 'fulfilled' ? dnsSec.value : null;
-  threatIntel = threatIntel.status === 'fulfilled' ? threatIntel.value : null;
   
-  // Merge DNS security and threat intel into result
-  var result = QSR._buildScanResult(host, dnsData, crtData, headerData, tlsProbeData);
-  if (dnsSec) result.dnsSecurity = dnsSec;
-  if (threatIntel) result.threatIntel = threatIntel;
-  
-  return result;
+  return QSR._buildScanResult(host, dnsData, crtData, {}, tlsProbeData);
 };
 
 
