@@ -842,9 +842,9 @@ QSR.runCompare = async function () {
   }
 };
 
-/* ── Source 4: Security Headers via Vercel API Proxy ───── */
+/* ── Source 4: Comprehensive TLS Scanner (Certificate + Headers + Ciphers) ───── */
 QSR._fetchTLSProbe = async function (host) {
-  var cacheKey = 'headers_' + host;
+  var cacheKey = 'tls_' + host;
   
   // Check cache first
   if (window._qsrCache && window._qsrCache[cacheKey]) {
@@ -852,21 +852,36 @@ QSR._fetchTLSProbe = async function (host) {
   }
   
   try {
-    // Use Vercel API route to fetch headers (server-side, no CORS issues)
-    var r = await fetch('/api/get-headers?host=' + encodeURIComponent(host), {
+    // Use comprehensive TLS scanner (certificate, headers, ciphers, TLS version, SSL Labs grade)
+    var r = await fetch('/api/scan-tls?host=' + encodeURIComponent(host), {
       method: 'GET',
-      signal: AbortSignal.timeout(12000)
+      signal: AbortSignal.timeout(45000)
     });
     
     if (r.ok) {
       var d = await r.json();
-      console.log('[Security Headers]', host, 'Headers found:', Object.keys(d.headers).length);
+      console.log('[TLS Scanner]', host, 'Certificate:', d.certificate ? 'Found' : 'Not found', 'Headers:', Object.keys(d.headers || {}).length, 'TLS:', d.tlsVersion);
+      
+      var tlsVersion = d.tlsVersion ? d.tlsVersion.replace('TLSv', '') : '1.2';
+      var keySize = d.certificate && d.certificate.bits ? d.certificate.bits : 2048;
+      var keyAlg = 'RSA';
+      
+      // Parse certificate subject for key algorithm
+      if (d.certificate && d.certificate.subject) {
+        // Try to detect key algorithm from certificate
+        if (d.certificate.subject.includes && d.certificate.subject.includes('ECDSA')) keyAlg = 'ECDSA';
+      }
       
       var res = {
         ok: true,
         headers: d.headers || {},
-        statusCode: d.statusCode,
-        source: 'Direct HEAD Request (Vercel Proxy)'
+        tlsVersion: tlsVersion,
+        keySize: keySize,
+        keyAlg: keyAlg,
+        cipher: d.cipher || {},
+        sslLabsGrade: d.sslLabsGrade,
+        certificate: d.certificate,
+        source: 'Comprehensive TLS Scan (Node.js TLS + SSL Labs)'
       };
       
       // Cache the result
@@ -875,7 +890,7 @@ QSR._fetchTLSProbe = async function (host) {
       return res;
     }
   } catch (e) {
-    console.warn('[Security Headers] Error:', e.message);
+    console.warn('[TLS Scanner]', host, 'Error:', e.message);
   }
   
   // Return cached result if available, otherwise empty
