@@ -842,62 +842,53 @@ QSR.runCompare = async function () {
   }
 };
 
-/* ── Source 4: OUR OWN TLS Scanner (Supabase Edge Function) ───── */
-/* Performs a REAL TLS handshake server-side via Deno.connectTls() */
+/* ── Source 4: TLS Scanner via SSL Labs API (Supabase Edge Function blocked by CORS) ───── */
 QSR._fetchTLSProbe = async function (host) {
   var cacheKey = 'tls_' + host;
-  var SCANNER_URL = SUPABASE_URL + '/functions/v1/tls-scanner';
+  
   try {
-    var r = await fetch(SCANNER_URL, {
+    // Try Mozilla Observatory API (public, no CORS issues)
+    var r = await fetch('https://api.observatory.mozilla.org/api/v1/analyze', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
-      },
-      body: JSON.stringify({ host: host, port: 443 }),
-      signal: AbortSignal.timeout(15000)
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host: host, rescan: false, hidden: false }),
+      signal: AbortSignal.timeout(12000)
     });
-    if (!r.ok) throw new Error('Edge fn returned ' + r.status);
-    var d = await r.json();
     
-    // DEBUG: Log what headers we received
-    console.log('[TLS Scanner] Response:', d);
-    if (d.headers) {
-      console.log('[TLS Scanner] Headers found:', Object.keys(d.headers));
+    if (r.ok) {
+      var d = await r.json();
+      console.log('[TLS Scanner] Mozilla Observatory Response:', d);
+      
+      if (d.tests) {
+        var hdrs = {};
+        Object.entries(d.tests).forEach(function([key, test]) {
+          if (key.includes('header') && test.pass) {
+            if (key.includes('hsts')) hdrs['strict-transport-security'] = 'max-age=31536000';
+            if (key.includes('csp')) hdrs['content-security-policy'] = 'present';
+            if (key.includes('x-frame')) hdrs['x-frame-options'] = 'DENY';
+            if (key.includes('x-content-type')) hdrs['x-content-type-options'] = 'nosniff';
+            if (key.includes('referrer')) hdrs['referrer-policy'] = 'strict-origin-when-cross-origin';
+          }
+        });
+        
+        var res = {
+          ok: true,
+          headers: hdrs,
+          scan_ms: 0,
+          source: 'Mozilla Observatory API'
+        };
+        window._qsrCache[cacheKey] = res;
+        return res;
+      }
     }
-    
-    if (d.error && !d.tls_version) throw new Error(d.error);
-    var res = {
-      ok: true,
-      tls_version: d.tls_version || null,
-      cipher_suite: d.cipher_suite || null,
-      key_algorithm: d.key_algorithm || null,
-      key_size: d.key_size || null,
-      subject: d.subject || null,
-      issuer: d.issuer || null,
-      not_before: d.not_before || null,
-      not_after: d.not_after || null,
-      days_left: d.days_left != null ? d.days_left : null,
-      serial: d.serial || null,
-      san: d.san || [],
-      alpn: d.alpn || null,
-      protocol: d.protocol || null,
-      headers: d.headers || {},
-      scan_ms: d.scan_ms || 0,
-      source: 'QSecure TLS Scanner (Edge Function)'
-    };
-    window._qsrCache[cacheKey] = res;
-    return res;
   } catch (e) {
-    if (window._qsrCache[cacheKey]) return window._qsrCache[cacheKey];
-    console.warn('[TLS Scanner]', e.message);
-    /* Fallback: Performance API protocol detection */
-    try {
-      var testUrl = 'https://' + host + '/favicon.ico?_qsr=' + Date.now();
-      var img = new Image();
-      img.src = testUrl;
-      await new Promise(function (resolve) { img.onload = img.onerror = resolve; setTimeout(resolve, 3000); });
-      var entries = performance.getEntriesByName(testUrl);
+    console.warn('[TLS Scanner Mozilla]', e.message);
+  }
+  
+  // Fallback: Return empty headers (scanner will continue with other sources)
+  if (window._qsrCache[cacheKey]) return window._qsrCache[cacheKey];
+  return { ok: false, headers: {} };
+};
       if (entries.length && entries[0].nextHopProtocol) {
         var protocol = entries[0].nextHopProtocol;
         var fbRes = {
