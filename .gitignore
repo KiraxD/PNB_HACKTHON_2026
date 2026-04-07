@@ -1,4 +1,7 @@
 ﻿# QSecure Radar — Supabase backend keys (never commit these)
+.env.local
+.env
+
 # Node modules (for seed script)
 node_modules/
 package-lock.json
@@ -12,10 +15,6 @@ desktop.ini
 .vscode/
 *.swp
 *.swo
-.agents/
-.claude/
-.windsurf/
-skills-lock.json
 
 # Logs
 *.log
