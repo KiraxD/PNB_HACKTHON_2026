@@ -24,12 +24,12 @@ VALUES
   ('internal.pnb', '2012-11-01', 'Internal', 'Punjab National Bank');
 
 -- Sample SSL Certificates
-INSERT INTO public.ssl_certs (fingerprint, valid_from, valid_to, common_name, company, ca)
+INSERT INTO public.ssl_certs (fingerprint, valid_from, common_name, company, ca)
 VALUES
-  ('SHA256:1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p', '2024-01-15'::DATE, '2025-01-15'::DATE, 'www.netpnb.com', 'Punjab National Bank', 'Let''s Encrypt Authority X3'),
-  ('SHA256:2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p1q', '2023-06-20'::DATE, '2024-06-20'::DATE, 'api.pnb.co.in', 'Punjab National Bank', 'DigiCert Global Root CA'),
-  ('SHA256:3c4d5e6f7g8h9i0j1k2l3m4n5o6p1q2r', '2022-12-01'::DATE, '2023-12-01'::DATE, 'pay.netpnb.com', 'Punjab National Bank', 'Sectigo RSA Domain Validation Secure Server CA'),
-  ('SHA256:4d5e6f7g8h9i0j1k2l3m4n5o6p1q2r3s', '2021-03-10'::DATE, '2022-03-10'::DATE, 'admin.netpnb.com', 'Punjab National Bank', 'self-signed');
+  ('SHA256:1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p', '2024-01-15'::DATE, 'www.netpnb.com', 'Punjab National Bank', 'Let''s Encrypt Authority X3'),
+  ('SHA256:2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p1q', '2023-06-20'::DATE, 'api.pnb.co.in', 'Punjab National Bank', 'DigiCert Global Root CA'),
+  ('SHA256:3c4d5e6f7g8h9i0j1k2l3m4n5o6p1q2r', '2022-12-01'::DATE, 'pay.netpnb.com', 'Punjab National Bank', 'Sectigo RSA Domain Validation Secure Server CA'),
+  ('SHA256:4d5e6f7g8h9i0j1k2l3m4n5o6p1q2r3s', '2021-03-10'::DATE, 'admin.netpnb.com', 'Punjab National Bank', 'self-signed');
 
 -- Sample IP Subnets
 INSERT INTO public.ip_subnets (ip, ports, subnet, asn, netname, location)
