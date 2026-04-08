@@ -1,23 +1,21 @@
-// Internal Custom Threat Intelligence Engine
-// Builds malware/phishing/misconfiguration detection from certificate and DNS analysis
-
+// Threat Analysis Engine - Real Certificate Analysis + Header Checks
 export default async function handler(req, res) {
-  const { host, certData, dnsData } = req.body;
+  const { host, certData, headers } = req.body;
 
   if (!host) {
     return res.status(400).json({ error: 'Missing host parameter' });
   }
 
   try {
-    // Performs custom threat scoring without external APIs
-    const threatAnalysis = performCustomThreatAnalysis(host, certData, dnsData);
+    // Performs custom threat scoring using real certificate data
+    const threatAnalysis = performCustomThreatAnalysis(host, certData, headers);
     
     res.status(200).json({
       ok: true,
       host: host,
       threatAnalysis: threatAnalysis,
       timestamp: new Date().toISOString(),
-      source: 'Internal Threat Intelligence Engine v1.0'
+      source: 'Internal Threat Intelligence Engine'
     });
   } catch (error) {
     res.status(500).json({
@@ -28,14 +26,14 @@ export default async function handler(req, res) {
   }
 }
 
-function performCustomThreatAnalysis(host, certData, dnsData) {
+function performCustomThreatAnalysis(host, certData, headers) {
   const threats = [];
   let overallRisk = 0;
 
   // === CERTIFICATE-BASED THREATS ===
   if (certData) {
     // Expired certificate
-    if (certData.daysRemaining < 0) {
+    if (certData.daysRemaining && certData.daysRemaining < 0) {
       threats.push({
         type: 'CERTIFICATE_EXPIRED',
         severity: 'critical',
@@ -47,7 +45,7 @@ function performCustomThreatAnalysis(host, certData, dnsData) {
     }
 
     // Certificate expiring soon
-    if (certData.daysRemaining < 7 && certData.daysRemaining > 0) {
+    if (certData.daysRemaining && certData.daysRemaining < 7 && certData.daysRemaining > 0) {
       threats.push({
         type: 'CERTIFICATE_EXPIRING_CRITICAL',
         severity: 'high',
@@ -56,7 +54,7 @@ function performCustomThreatAnalysis(host, certData, dnsData) {
         recommendation: 'Renew certificate within 7 days'
       });
       overallRisk += 25;
-    } else if (certData.daysRemaining < 30) {
+    } else if (certData.daysRemaining && certData.daysRemaining < 30) {
       threats.push({
         type: 'CERTIFICATE_EXPIRING_WARNING',
         severity: 'medium',
@@ -68,16 +66,17 @@ function performCustomThreatAnalysis(host, certData, dnsData) {
     }
 
     // Weak key
-    if (certData.bits < 2048) {
+    const keyBits = certData.keyBits || certData.bits || 2048;
+    if (keyBits < 2048) {
       threats.push({
         type: 'WEAK_CRYPTOGRAPHY_CRITICAL',
         severity: 'critical',
-        description: `${certData.bits}-bit key is cryptographically weak`,
+        description: `${keyBits}-bit key is cryptographically weak`,
         impact: 'Private key could be compromised via factorization attacks',
         recommendation: 'Immediately upgrade to 2048-bit or higher key'
       });
       overallRisk += 35;
-    } else if (certData.bits === 2048) {
+    } else if (keyBits === 2048) {
       threats.push({
         type: 'WEAK_CRYPTOGRAPHY_WARNING',
         severity: 'high',
@@ -89,126 +88,67 @@ function performCustomThreatAnalysis(host, certData, dnsData) {
     }
 
     // Weak signature algorithm
-    if (certData.signAlgorithm && 
-        (certData.signAlgorithm.includes('SHA1') || 
-         certData.signAlgorithm.includes('MD5'))) {
+    const sigAlg = certData.signatureAlgorithm || 'unknown';
+    if (sigAlg && 
+        (sigAlg.toUpperCase().includes('SHA1') || 
+         sigAlg.toUpperCase().includes('MD5'))) {
       threats.push({
         type: 'WEAK_SIGNATURE_ALGORITHM',
         severity: 'high',
-        description: `Certificate uses ${certData.signAlgorithm} (deprecated)`,
+        description: `Certificate uses ${sigAlg} (deprecated)`,
         impact: 'Collision attacks possible, browsers may reject certificate',
         recommendation: 'Renew certificate with SHA256 or higher'
       });
       overallRisk += 25;
     }
-
-    // Missing TLS 1.3
-    if (!certData.tlsVersion.includes('1.3')) {
-      threats.push({
-        type: 'OUTDATED_TLS_VERSION',
-        severity: 'medium',
-        description: `Server uses ${certData.tlsVersion} instead of TLS 1.3`,
-        impact: 'Slower connections, potential downgrade attacks',
-        recommendation: 'Configure server to support TLS 1.3'
-      });
-      overallRisk += 15;
-    }
-
-    // No forward secrecy
-    if (!certData.forwardSecrecy) {
-      threats.push({
-        type: 'NO_FORWARD_SECRECY',
-        severity: 'high',
-        description: 'Cipher suite lacks Perfect Forward Secrecy (PFS)',
-        impact: 'If private key is compromised, all historical sessions can be decrypted',
-        recommendation: 'Use ECDHE or DHE ciphers exclusively'
-      });
-      overallRisk += 20;
-    }
   }
 
-  // === DNS-BASED THREATS ===
-  if (dnsData) {
-    // Missing SPF
-    if (!dnsData.email_security?.spf_present) {
+  // === HEADER-BASED THREATS ===
+  if (headers) {
+    // Missing HSTS
+    if (!headers['strict-transport-security']) {
       threats.push({
-        type: 'MISSING_SPF_RECORD',
+        type: 'MISSING_HSTS',
         severity: 'high',
-        description: 'No SPF record found',
-        impact: 'Domain vulnerable to email spoofing attacks',
-        recommendation: 'Add SPF record with hard fail policy (v=spf1 ... -all)'
-      });
-      overallRisk += 20;
-    } else if (dnsData.email_security?.spf_policy?.strength === 'weak') {
-      threats.push({
-        type: 'WEAK_SPF_POLICY',
-        severity: 'medium',
-        description: 'SPF policy uses soft fail or no fail',
-        impact: 'Spoofed emails from your domain may still be delivered',
-        recommendation: 'Change to hard fail (-all) policy'
-      });
-      overallRisk += 12;
-    }
-
-    // Missing DMARC
-    if (!dnsData.email_security?.dmarc_present) {
-      threats.push({
-        type: 'MISSING_DMARC_POLICY',
-        severity: 'high',
-        description: 'No DMARC policy found',
-        impact: 'No mechanism to prevent domain spoofing or report breaches',
-        recommendation: 'Implement DMARC policy (start with p=none for monitoring)'
-      });
-      overallRisk += 20;
-    } else if (dnsData.email_security?.dmarc_policy?.strength === 'weak') {
-      threats.push({
-        type: 'WEAK_DMARC_POLICY',
-        severity: 'medium',
-        description: 'DMARC policy is in monitoring-only mode (p=none)',
-        impact: 'Non-compliant emails are not rejected',
-        recommendation: 'Upgrade to p=quarantine or p=reject after testing'
+        description: 'No HSTS header found',
+        impact: 'Browser not forced to HTTPS - man-in-the-middle attack risk',
+        recommendation: 'Add Strict-Transport-Security: max-age=31536000; includeSubDomains; preload'
       });
       overallRisk += 15;
     }
 
-    // Missing DKIM
-    if (!dnsData.email_security?.dkim_present) {
+    // Missing CSP
+    if (!headers['content-security-policy']) {
       threats.push({
-        type: 'MISSING_DKIM_SIGNATURES',
+        type: 'MISSING_CSP',
         severity: 'medium',
-        description: 'No DKIM records found',
-        impact: 'Emails cannot be cryptographically signed and verified',
-        recommendation: 'Generate and publish DKIM public keys for email servers'
+        description: 'No Content-Security-Policy header found',
+        impact: 'XSS and injection attacks not mitigated',
+        recommendation: 'Implement CSP policy'
       });
       overallRisk += 10;
     }
 
-    // Missing CAA
-    if (!dnsData.caa_records || dnsData.caa_records.length === 0) {
+    // Missing X-Frame-Options
+    if (!headers['x-frame-options']) {
       threats.push({
-        type: 'MISSING_CAA_RECORDS',
-        severity: 'low',
-        description: 'No CAA records restricting certificate issuance',
-        impact: 'Any CA can issue certificates for your domain',
-        recommendation: 'Add CAA records to whitelist authorized CAs only'
+        type: 'MISSING_X_FRAME_OPTIONS',
+        severity: 'medium',
+        description: 'No X-Frame-Options header found',
+        impact: 'Clickjacking attacks possible',
+        recommendation: 'Add X-Frame-Options: DENY or SAMEORIGIN'
       });
       overallRisk += 8;
     }
-  }
 
-  // === KNOWN PATTERNS ===
-  // Check for common misconfigurations
-  const hostLower = host.toLowerCase();
-  
-  // Suspicious domain patterns
-  if (hostLower.includes('test') || hostLower.includes('dev') || hostLower.includes('staging')) {
-    if (!dnsData?.txt_records?.some(r => r.includes('v=spf1'))) {
+    // Missing X-Content-Type-Options
+    if (!headers['x-content-type-options']) {
       threats.push({
-        type: 'TEST_DOMAIN_NO_SEC',
+        type: 'MISSING_X_CONTENT_TYPE_OPTIONS',
         severity: 'low',
-        description: 'Test/dev domain lacks email security records',
-        impact: 'Test infrastructure could act as launching point for phishing',
-        recommendation: 'Add SPF/DMARC even to test domains'
+        description: 'No X-Content-Type-Options header',
+        impact: 'MIME sniffing attacks possible',
+        recommendation: 'Add X-Content-Type-Options: nosniff'
       });
       overallRisk += 5;
     }

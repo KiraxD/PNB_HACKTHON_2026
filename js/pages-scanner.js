@@ -842,57 +842,65 @@ QSR.runCompare = async function () {
   }
 };
 
-/* ── Source 4: Internal Threat Analysis (No External APIs) ───── */
+/* ── Source 4: Real TLS Scanner + Threat Analysis ───── */
 QSR._fetchTLSProbe = async function (host) {
-  var cacheKey = 'threat_' + host;
+  var cacheKey = 'tls_real_' + host;
   
-  // Check cache first
   if (window._qsrCache && window._qsrCache[cacheKey]) {
     return window._qsrCache[cacheKey];
   }
   
   try {
-    // Use internal cryptographic analyzer + DNS analyzer + threat scorer
-    var [cryptoData, dnsData] = await Promise.allSettled([
-      fetch('/api/crypto-analyzer?host=' + encodeURIComponent(host)).then(r => r.ok ? r.json() : null),
-      fetch('/api/dns-analyzer?host=' + encodeURIComponent(host)).then(r => r.ok ? r.json() : null)
-    ]);
+    // Get real TLS data (certificate + headers)
+    var tlsResponse = await fetch('/api/get-tls?host=' + encodeURIComponent(host), {
+      method: 'GET',
+      signal: AbortSignal.timeout(15000)
+    });
     
-    var c = cryptoData.status === 'fulfilled' ? cryptoData.value : null;
-    var d = dnsData.status === 'fulfilled' ? dnsData.value : null;
-    
-    if (c) {
-      console.log('[Internal Analyzer]', host, 'Threat Score:', c.threatScore, 'PQC Ready:', c.pqcAssessment.readinessScore);
-      
-      var res = {
-        ok: true,
-        headers: {},
-        certificate: c.certificate,
-        tlsVersion: c.certificate.tlsVersion,
-        keySize: c.certificate.bits,
-        keyAlg: c.certificate.publicKeyAlgorithm,
-        threatScore: c.threatScore,
-        cryptoAnalysis: c,
-        pqcAssessment: c.pqcAssessment,
-        quantumTimeline: c.quantumRiskTimeline,
-        dnsAnalysis: d ? d.dnsRecords : null,
-        source: 'Internal Threat Analysis Engine v2.0 (No External APIs)'
-      };
-      
-      // Cache the result
-      if (!window._qsrCache) window._qsrCache = {};
-      window._qsrCache[cacheKey] = res;
-      return res;
+    if (!tlsResponse.ok) {
+      console.warn('[TLS Scanner] get-tls endpoint failed');
+      return { ok: false, headers: {} };
     }
+    
+    var tlsData = await tlsResponse.json();
+    
+    // Get threat analysis with real cert data
+    var threatResponse = await fetch('/api/threat-analyzer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        host: host,
+        certData: tlsData.certificate,
+        headers: tlsData.headers
+      }),
+      signal: AbortSignal.timeout(10000)
+    });
+    
+    var threatData = threatResponse.ok ? await threatResponse.json() : null;
+    
+    console.log('[TLS Scanner] Real data:', host, 'TLS:', tlsData.tlsVersion, 'Key:', tlsData.certificate.keyBits + '-bit', tlsData.certificate.publicKeyAlgorithm, 'Headers:', Object.keys(tlsData.headers).length);
+    
+    var res = {
+      ok: true,
+      headers: tlsData.headers || {},
+      certificate: tlsData.certificate,
+      tlsVersion: tlsData.tlsVersion,
+      cipher: tlsData.cipher,
+      keySize: tlsData.certificate.keyBits,
+      keyAlg: tlsData.certificate.publicKeyAlgorithm,
+      threatScore: threatData ? threatData.threatAnalysis.riskScore : 50,
+      threatLevel: threatData ? threatData.threatAnalysis.riskLevel : 'UNKNOWN',
+      threats: threatData ? threatData.threatAnalysis.threats : [],
+      source: 'Real TLS Handshake Scanner'
+    };
+    
+    if (!window._qsrCache) window._qsrCache = {};
+    window._qsrCache[cacheKey] = res;
+    return res;
   } catch (e) {
-    console.warn('[Internal Analyzer]', host, 'Error:', e.message);
+    console.error('[TLS Scanner] Error:', e.message);
+    return { ok: false, headers: {} };
   }
-  
-  // Return cached result if available, otherwise empty
-  if (window._qsrCache && window._qsrCache[cacheKey]) {
-    return window._qsrCache[cacheKey];
-  }
-  return { ok: false, headers: {} };
 };
 
 QSR._fetchOneScan = async function (host) {

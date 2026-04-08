@@ -15,6 +15,7 @@ var ROUTES = {
   'user-management': { title:'User Management',  init: function(){ if(window.initUserManagement) window.initUserManagement(); } },
   'audit-log':       { title:'Audit Log',        init: function(){ if(window.QSR&&window.QSR.pages&&window.QSR.pages.auditlog) window.QSR.pages.auditlog(document.getElementById('page-content')); } },
   'scanner':         { title:'TLS Scanner',      init: function(){ if(window.QSR&&window.QSR.pages&&window.QSR.pages.scanner) window.QSR.pages.scanner(document.getElementById('page-content')); } },
+  'security-scanner': { title:'Security Scanner', init: function(){ if(window.QSR&&window.QSR.pages&&window.QSR.pages.securityScanner) window.QSR.pages.securityScanner(document.getElementById('page-content')); } },
   'zero-trust':      { title:'Zero Trust',       init: function(){ if(window.QSR&&window.QSR.pages&&window.QSR.pages.zerotrust) window.QSR.pages.zerotrust(document.getElementById('page-content')); } }
 };
 
@@ -29,6 +30,7 @@ var PAGE_HTML = {
   'user-management': function(){ return window._usersPage        ? window._usersPage()        : '<p>Loading...</p>'; },
   'audit-log':       function(){ return window._auditLogPage     ? window._auditLogPage()     : '<p>Loading...</p>'; },
   'scanner':         function(){ return '<div id="scanner-mount"></div>'; },
+  'security-scanner': function(){ return '<div id="security-scanner-mount"></div>'; },
   'zero-trust':      function(){ return '<div id="zt-page-mount"></div>'; }
 };
 
