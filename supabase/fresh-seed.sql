@@ -39,42 +39,44 @@ VALUES
   ('10.0.0.0/16', '22,3389', '10.0.0.0/16', 'AS55836', 'PNB-DATACENTER', 'Bangalore, India');
 
 -- Sample Software
-INSERT INTO public.software (asset_id, software_name, version, vendor, vulnerability_count)
-SELECT id, 'Nginx', '1.24.0', 'NGINX Inc', 2 FROM public.assets WHERE name = 'PNB Main Portal'
-UNION ALL
-SELECT id, 'OpenSSL', '3.0.8', 'OpenSSL Foundation', 1 FROM public.assets WHERE name = 'Core Banking API'
-UNION ALL
-SELECT id, 'Apache HTTP Server', '2.4.57', 'Apache Software Foundation', 3 FROM public.assets WHERE name = 'Payment Gateway'
-UNION ALL
-SELECT id, 'Node.js', '18.19.0', 'OpenJS Foundation', 0 FROM public.assets WHERE name = 'Mobile App API';
+INSERT INTO public.software (product, version, type, port, host, company)
+VALUES
+  ('Nginx', '1.24.0', 'Web Server', 443, 'www.netpnb.com', 'NGINX Inc'),
+  ('OpenSSL', '3.0.8', 'Crypto Library', 443, 'api.pnb.co.in', 'OpenSSL Foundation'),
+  ('Apache HTTP Server', '2.4.57', 'Web Server', 443, 'pay.netpnb.com', 'Apache Software Foundation'),
+  ('Node.js', '18.19.0', 'Runtime', 8080, 'mobile-api.pnb.co.in', 'OpenJS Foundation');
 
 -- Sample PQC Scores
-INSERT INTO public.pqc_scores (asset_id, score_0_25, score_25_50, score_50_75, score_75_90, score_90_100, pqc_ready_count, total_assets)
-SELECT id, 0, 1, 2, 3, 2, 7, 8 FROM public.assets WHERE name = 'PNB Main Portal'
+INSERT INTO public.pqc_scores (asset_id, asset_name, score, status, pqc_support)
+SELECT id, name, 85, 'Compliant', true FROM public.assets WHERE name = 'PNB Main Portal'
 UNION ALL
-SELECT id, 0, 0, 1, 2, 5, 8, 8 FROM public.assets WHERE name = 'Core Banking API';
+SELECT id, name, 88, 'Compliant', true FROM public.assets WHERE name = 'Core Banking API'
+UNION ALL
+SELECT id, name, 72, 'Partial', false FROM public.assets WHERE name = 'Payment Gateway'
+UNION ALL
+SELECT id, name, 65, 'Partial', false FROM public.assets WHERE name = 'Mobile App API'
+UNION ALL
+SELECT id, name, 58, 'Non-Compliant', false FROM public.assets WHERE name = 'Customer Portal'
+UNION ALL
+SELECT id, name, 42, 'Non-Compliant', false FROM public.assets WHERE name = 'Admin Dashboard';
 
 -- Sample Cyber Ratings
-INSERT INTO public.cyber_rating (asset_id, overall_rating, tls_score, crypto_score, vulnerability_score, compliance_score, last_assessment)
-SELECT id, 85, 90, 88, 80, 82, now() FROM public.assets WHERE name = 'PNB Main Portal'
-UNION ALL
-SELECT id, 88, 92, 90, 85, 87, now() FROM public.assets WHERE name = 'Core Banking API'
-UNION ALL
-SELECT id, 72, 75, 70, 72, 70, now() FROM public.assets WHERE name = 'Payment Gateway'
-UNION ALL
-SELECT id, 65, 68, 62, 65, 60, now() FROM public.assets WHERE name = 'Mobile App API'
-UNION ALL
-SELECT id, 58, 60, 55, 58, 50, now() FROM public.assets WHERE name = 'Customer Portal'
-UNION ALL
-SELECT id, 42, 45, 40, 42, 35, now() FROM public.assets WHERE name = 'Admin Dashboard';
+INSERT INTO public.cyber_rating (enterprise_score, max_score, grade)
+VALUES
+  (85, 100, 'A'),
+  (88, 100, 'A'),
+  (72, 100, 'B'),
+  (65, 100, 'B'),
+  (58, 100, 'C'),
+  (42, 100, 'D');
 
--- Sample CBOM Vulnerabilities
-INSERT INTO public.cbom (asset_id, component_name, component_version, cpe, cve_list, severity, remediation_status)
-SELECT id, 'Nginx SSL Module', '1.24.0', 'cpe:2.3:a:nginx:nginx:1.24.0:*:*:*:*:*:*:*', '["CVE-2023-44487","CVE-2023-42119"]', 'High', 'Pending' FROM public.assets WHERE name = 'PNB Main Portal'
+-- Sample CBOM (Cryptographic BOM)
+INSERT INTO public.cbom (asset_id, app, key_length, cipher, ca, tls_version)
+SELECT id, 'Nginx SSL Module', '2048', 'AES-256-GCM', 'Let''s Encrypt', 'TLSv1.3' FROM public.assets WHERE name = 'PNB Main Portal'
 UNION ALL
-SELECT id, 'OpenSSL Crypto Library', '3.0.8', 'cpe:2.3:a:openssl:openssl:3.0.8:*:*:*:*:*:*:*', '["CVE-2023-5678"]', 'Medium', 'Patched' FROM public.assets WHERE name = 'Core Banking API'
+SELECT id, 'OpenSSL Crypto', '2048', 'AES-256-GCM', 'DigiCert', 'TLSv1.3' FROM public.assets WHERE name = 'Core Banking API'
 UNION ALL
-SELECT id, 'Apache HTTP Server', '2.4.57', 'cpe:2.3:a:apache:http_server:2.4.57:*:*:*:*:*:*:*', '["CVE-2023-9999","CVE-2023-8888","CVE-2023-7777"]', 'High', 'Pending' FROM public.assets WHERE name = 'Payment Gateway';
+SELECT id, 'Apache SSL Module', '2048', 'AES-128-GCM', 'Sectigo', 'TLSv1.2' FROM public.assets WHERE name = 'Payment Gateway';
 
 -- Sample Scan History
 INSERT INTO public.scan_history (scan_type, target, target_type, scan_status, risk_level, vulnerabilities_found, scan_date, report_url)
