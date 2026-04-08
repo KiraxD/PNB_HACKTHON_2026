@@ -78,16 +78,6 @@ SELECT id, 'OpenSSL Crypto', '2048', 'AES-256-GCM', 'DigiCert', 'TLSv1.3' FROM p
 UNION ALL
 SELECT id, 'Apache SSL Module', '2048', 'AES-128-GCM', 'Sectigo', 'TLSv1.2' FROM public.assets WHERE name = 'Payment Gateway';
 
--- Sample Scan History
-INSERT INTO public.scan_history (scan_type, target, target_type, scan_status, risk_level, vulnerabilities_found, scan_date, report_url)
-VALUES
-  ('TLS Scanner', 'www.netpnb.com', 'domain', 'completed', 'Low', 2, now() - INTERVAL '2 days', '/reports/tls-netpnb-2026-04-07.pdf'),
-  ('Security Scanner', 'api.pnb.co.in', 'domain', 'completed', 'Medium', 5, now() - INTERVAL '1 days', '/reports/security-api-2026-04-08.pdf'),
-  ('Asset Discovery', 'pnb.co.in', 'domain', 'in_progress', 'Unknown', 0, now() - INTERVAL '4 hours', NULL),
-  ('TLS Scanner', 'pay.netpnb.com', 'domain', 'completed', 'Medium', 8, now() - INTERVAL '6 hours', '/reports/tls-pay-2026-04-08.pdf'),
-  ('Security Scanner', 'customer.netpnb.com', 'domain', 'failed', 'High', 0, now() - INTERVAL '12 hours', NULL),
-  ('CBOM Analysis', 'www.netpnb.com', 'domain', 'completed', 'High', 3, now() - INTERVAL '15 hours', '/reports/cbom-netpnb-2026-04-08.pdf');
-
 -- Verification: Count records in each table
 SELECT 'SEED DATA LOADED' as status, COUNT(*) as total_records FROM (
   SELECT COUNT(*) FROM public.assets
@@ -98,7 +88,6 @@ SELECT 'SEED DATA LOADED' as status, COUNT(*) as total_records FROM (
   UNION ALL SELECT COUNT(*) FROM public.pqc_scores
   UNION ALL SELECT COUNT(*) FROM public.cyber_rating
   UNION ALL SELECT COUNT(*) FROM public.cbom
-  UNION ALL SELECT COUNT(*) FROM public.scan_history
 ) as counts;
 
 -- Show loaded data summary
@@ -109,5 +98,4 @@ UNION ALL SELECT 'IP Subnets', COUNT(*) FROM public.ip_subnets
 UNION ALL SELECT 'Software', COUNT(*) FROM public.software
 UNION ALL SELECT 'PQC Scores', COUNT(*) FROM public.pqc_scores
 UNION ALL SELECT 'Cyber Ratings', COUNT(*) FROM public.cyber_rating
-UNION ALL SELECT 'CBOM Records', COUNT(*) FROM public.cbom
-UNION ALL SELECT 'Scan History', COUNT(*) FROM public.scan_history;
+UNION ALL SELECT 'CBOM Records', COUNT(*) FROM public.cbom;
