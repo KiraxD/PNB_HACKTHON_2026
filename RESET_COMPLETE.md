@@ -5,6 +5,7 @@
 All scan and asset data has been **successfully cleared** from Supabase.
 
 **Cleared tables:**
+
 - ✅ assets (0 rows)
 - ✅ domains (0 rows)
 - ✅ ssl_certs (0 rows)
@@ -17,6 +18,7 @@ All scan and asset data has been **successfully cleared** from Supabase.
 - ✅ And 4 more...
 
 **Command used:**
+
 ```bash
 node clear-database.js
 ```
@@ -48,6 +50,7 @@ To populate with fresh sample PNB assets, follow **ONE** of these methods:
    ```
 
 ### **Method B: File Location**
+
 ```
 c:\Users\KIIT0001\Desktop\pnb\supabase\fresh-seed.sql
 ```
@@ -90,13 +93,13 @@ c:\Users\KIIT0001\Desktop\pnb\supabase\fresh-seed.sql
 
 ## 📁 Associated Files
 
-| File | Purpose |
-|------|---------|
-| `clear-database.js` | Clears all scan/asset data ✅ DONE |
-| `seed-database.js` | Node script for seeding (requires auth) |
+| File                      | Purpose                                  |
+| ------------------------- | ---------------------------------------- |
+| `clear-database.js`       | Clears all scan/asset data ✅ DONE       |
+| `seed-database.js`        | Node script for seeding (requires auth)  |
 | `supabase/fresh-seed.sql` | SQL for fresh sample data ← **USE THIS** |
-| `supabase/clear-data.sql` | SQL for clearing ✅ EXECUTED |
-| `DATABASE_RESET.md` | Full reference guide |
+| `supabase/clear-data.sql` | SQL for clearing ✅ EXECUTED             |
+| `DATABASE_RESET.md`       | Full reference guide                     |
 
 ---
 
@@ -118,11 +121,11 @@ c:\Users\KIIT0001\Desktop\pnb\supabase\fresh-seed.sql
 
 ## ✨ Summary
 
-| Status | Task |
-|--------|------|
-| ✅ | Database cleared (13 tables truncated) |
-| ⏳ | Load fresh sample data (use SQL Editor) |
-| ⏳ | Verify dashboard shows 8 assets |
-| ⏳ | Run first scan via Unified Scanner |
+| Status | Task                                    |
+| ------ | --------------------------------------- |
+| ✅     | Database cleared (13 tables truncated)  |
+| ⏳     | Load fresh sample data (use SQL Editor) |
+| ⏳     | Verify dashboard shows 8 assets         |
+| ⏳     | Run first scan via Unified Scanner      |
 
 **All ready!** Now load the fresh seed data and you're set. 🚀

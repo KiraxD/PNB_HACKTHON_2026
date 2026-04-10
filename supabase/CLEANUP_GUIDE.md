@@ -32,12 +32,14 @@ supabase sql --file supabase/clear-data.sql
 After clearing, populate with sample data:
 
 ### Via Supabase SQL Editor:
+
 1. Click **New Query**
 2. Copy & paste contents of **`fresh-seed.sql`**
 3. Click **Execute**
 4. Verify the record counts appear
 
 ### Via CLI:
+
 ```bash
 supabase sql --file supabase/fresh-seed.sql
 ```
@@ -47,6 +49,7 @@ supabase sql --file supabase/fresh-seed.sql
 ## 📝 What Gets Cleared
 
 All scan and asset data is wiped:
+
 - ✅ `assets` — Asset inventory entries
 - ✅ `domains` — Domain records
 - ✅ `ssl_certs` — Certificate data
@@ -68,6 +71,7 @@ All scan and asset data is wiped:
 ## ✨ What Fresh Seed Loads
 
 ### Assets (8 samples):
+
 - PNB Main Portal (Low risk, Tier-1)
 - Core Banking API (Low risk, Tier-1)
 - Payment Gateway (Medium risk, Tier-2)
@@ -78,6 +82,7 @@ All scan and asset data is wiped:
 - Data Warehouse (Low risk, Tier-1)
 
 ### Supporting Data:
+
 - 4 Domain registrations
 - 4 SSL Certificates
 - 3 IP Subnets
@@ -131,6 +136,7 @@ All scan and asset data is wiped:
 ---
 
 **Files:**
+
 - `clear-data.sql` — Remove all scan/asset data
 - `fresh-seed.sql` — Load 8 sample assets + verification data
 - `schema.sql` — Full database schema (run this first if creating from scratch)

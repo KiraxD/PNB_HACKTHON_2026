@@ -763,10 +763,27 @@ QSR._fetchCRT = async function (host) {
   }
 };
 
-/* ── Source 3: Live HTTP headers via Edge Function (deprecated CORS proxies removed) ──────────────── */
+/* ── Source 3: HTTP headers via CORS proxies (best-effort) ───── */
 QSR._fetchHeaders = async function (host) {
-  /* CORS proxies are unreliable. Headers now come from Edge Function only. */
-  return { ok: false, headers: {} };
+  /* Try allorigins proxy to get response headers from target */
+  try {
+    var proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent('https://' + host + '/');
+    var pr = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
+    if (pr.ok) {
+      var pj = await pr.json();
+      /* allorigins returns raw HTML + headers in .headers object */
+      var rawHdrs = pj.headers || {};
+      var lowerHdrs = {};
+      Object.keys(rawHdrs).forEach(function(k) { lowerHdrs[k.toLowerCase()] = rawHdrs[k]; });
+      /* Parse tech fingerprint from body */
+      var bodyText = pj.contents || '';
+      var titleMatch = bodyText.match(/<title[^>]*>([^<]{1,120})<\/title>/i);
+      var title = titleMatch ? titleMatch[1].trim() : host;
+      var fp = QSR._parseWhatWebStyleFingerprint(host, lowerHdrs, bodyText, title);
+      return { ok: true, headers: lowerHdrs, techFingerprint: fp };
+    }
+  } catch (e) { /* proxy unavailable */ }
+  return { ok: false, headers: {}, techFingerprint: { findings: [], confidence: 0, title: host } };
 };
 
 QSR._parseWhatWebStyleFingerprint = function (host, headers, body, title) {
@@ -842,63 +859,87 @@ QSR.runCompare = async function () {
   }
 };
 
-/* ── Source 4: Real TLS Scanner + Threat Analysis ───── */
+/* ── Source 4: Real TLS Handshake via Supabase Edge Function ─── */
+/* Calls the deployed Deno TLS scanner that performs a real         */
+/* Deno.connectTls() handshake and returns actual cert/cipher data  */
+QSR._EDGE_FN_URL = 'https://shinmrlkbaggbwpzhlcl.supabase.co/functions/v1/tls-scanner';
+QSR._SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNoaW5tcmxrYmFnZ2J3cHpobGNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwNzIxNzAsImV4cCI6MjA1ODY0ODE3MH0.MBHYiJN17JHEcxCXBw7SHpbA8n8e1zj1KCKnXDMbXKk';
+
 QSR._fetchTLSProbe = async function (host) {
   var cacheKey = 'tls_real_' + host;
-  
   if (window._qsrCache && window._qsrCache[cacheKey]) {
     return window._qsrCache[cacheKey];
   }
-  
+
   try {
-    // Get real TLS data (certificate + headers)
-    var tlsResponse = await fetch('/api/get-tls?host=' + encodeURIComponent(host), {
-      method: 'GET',
-      signal: AbortSignal.timeout(15000)
+    var resp = await fetch(QSR._EDGE_FN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': QSR._SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + QSR._SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ host: host, port: 443 }),
+      signal: AbortSignal.timeout(20000)
     });
-    
-    if (!tlsResponse.ok) {
-      console.warn('[TLS Scanner] get-tls endpoint failed');
+
+    if (!resp.ok) {
+      console.warn('[TLS-EdgeFn] HTTP', resp.status, '— falling back to header-only mode');
       return { ok: false, headers: {} };
     }
-    
-    var tlsData = await tlsResponse.json();
-    
-    // Get threat analysis with real cert data
-    var threatResponse = await fetch('/api/threat-analyzer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        host: host,
-        certData: tlsData.certificate,
-        headers: tlsData.headers
-      }),
-      signal: AbortSignal.timeout(10000)
-    });
-    
-    var threatData = threatResponse.ok ? await threatResponse.json() : null;
-    
-    console.log('[TLS Scanner] Real data:', host, 'TLS:', tlsData.tlsVersion, 'Key:', tlsData.certificate.keyBits + '-bit', tlsData.certificate.publicKeyAlgorithm, 'Headers:', Object.keys(tlsData.headers).length);
-    
+
+    var d = await resp.json();
+    if (d.error) {
+      console.warn('[TLS-EdgeFn] Scan error for', host, ':', d.error);
+      /* Partial result — may still have headers */
+      return {
+        ok: false,
+        headers: d.headers || {},
+        error: d.error,
+        tls_version: d.tls_version || null,
+        cipher_suite: d.cipher_suite || null
+      };
+    }
+
+    /* Map edge function response to scanner's expected shape */
+    /* Parse key algorithm + size from cipher suite when not in cert */
+    var inferredKeyAlg = null, inferredKeySize = null;
+    if (d.cipher_suite) {
+      var cs = d.cipher_suite.toUpperCase();
+      if (cs.includes('ECDSA')) { inferredKeyAlg = 'ECDSA'; inferredKeySize = 256; }
+      else if (cs.includes('RSA')) { inferredKeyAlg = 'RSA'; inferredKeySize = 2048; }
+      else if (cs.includes('KYBER') || cs.includes('ML-KEM')) { inferredKeyAlg = 'ML-KEM'; inferredKeySize = 768; }
+    }
+
+    /* Parse TLS version — Deno returns e.g. "TLSv1.3" */
+    var tlsVer = d.tls_version || null;
+    if (tlsVer) tlsVer = tlsVer.replace(/^TLSv?/i, '');
+
     var res = {
       ok: true,
-      headers: tlsData.headers || {},
-      certificate: tlsData.certificate,
-      tlsVersion: tlsData.tlsVersion,
-      cipher: tlsData.cipher,
-      keySize: tlsData.certificate.keyBits,
-      keyAlg: tlsData.certificate.publicKeyAlgorithm,
-      threatScore: threatData ? threatData.threatAnalysis.riskScore : 50,
-      threatLevel: threatData ? threatData.threatAnalysis.riskLevel : 'UNKNOWN',
-      threats: threatData ? threatData.threatAnalysis.threats : [],
-      source: 'Real TLS Handshake Scanner'
+      tls_version: tlsVer,
+      cipher_suite: d.cipher_suite,
+      key_algorithm: inferredKeyAlg,
+      key_size: inferredKeySize,
+      subject: d.subject,
+      issuer: d.issuer,
+      not_before: d.not_before,
+      not_after: d.not_after,
+      days_left: d.days_left,
+      serial: d.serial,
+      san: d.san || [],
+      alpn: d.alpn,
+      headers: d.headers || {},
+      scan_ms: d.scan_ms,
+      source: 'Supabase Edge Function (Deno TLS handshake)'
     };
-    
+
+    console.log('[TLS-EdgeFn] ✓', host, '— TLS:', tlsVer, '| Cipher:', d.cipher_suite, '| Days:', d.days_left);
     if (!window._qsrCache) window._qsrCache = {};
     window._qsrCache[cacheKey] = res;
     return res;
   } catch (e) {
-    console.error('[TLS Scanner] Error:', e.message);
+    console.error('[TLS-EdgeFn] Error for', host, ':', e.message);
     return { ok: false, headers: {} };
   }
 };
@@ -1044,24 +1085,42 @@ QSR._buildScanResult = function (host, dnsData, crtData, headerData, tlsProbeDat
   }
   if (crtSigAlg) profile.sigAlg = crtSigAlg;
 
-  /* ── 4c. OVERRIDE with real TLS probe data if available ── */
+  /* ── 4c. OVERRIDE with REAL TLS probe data (authoritative) ── */
   if (tlsProbeData && tlsProbeData.ok) {
+    /* TLS version from real handshake — always wins */
     if (tlsProbeData.tls_version) profile.tls = tlsProbeData.tls_version;
+    /* Real cert issuer from actual TLS handshake certificate chain */
+    if (tlsProbeData.issuer && tlsProbeData.issuer !== 'Unknown CA') issuer = tlsProbeData.issuer;
+    /* Parse key info from just-negotiated cipher suite */
     if (tlsProbeData.cipher_suite) {
-      /* Add the actually negotiated cipher to front of list */
       var realCipher = {
         name: tlsProbeData.cipher_suite,
-        strength: tlsProbeData.cipher_suite.includes('256') ? 256 : 128,
+        strength: tlsProbeData.cipher_suite.includes('_256_') || tlsProbeData.cipher_suite.includes('256_') ? 256 : 128,
         forward: tlsProbeData.cipher_suite.includes('ECDHE') || tlsProbeData.cipher_suite.includes('DHE'),
-        quantum: tlsProbeData.cipher_suite.includes('KYBER') || tlsProbeData.cipher_suite.includes('ML-KEM')
+        quantum: tlsProbeData.cipher_suite.includes('KYBER') || tlsProbeData.cipher_suite.includes('ML-KEM') || tlsProbeData.cipher_suite.includes('X25519KYBER')
       };
-      /* Replace first cipher with real negotiated one */
-      if (!profile.ciphers.some(c => c.name === realCipher.name)) {
-        profile.ciphers.unshift(realCipher);
+      /* Replace inferred ciphers with the one real negotiated cipher we know */
+      if (!profile.ciphers.some(function(c) { return c.name === realCipher.name; })) {
+        profile.ciphers = [realCipher]; /* Real takes priority — show what was actually negotiated */
       }
     }
+    /* Override cert dates from real handshake */
+    if (tlsProbeData.not_before) crtNotBefore = tlsProbeData.not_before;
+    if (tlsProbeData.not_after) {
+      crtNotAfter = tlsProbeData.not_after;
+      notAfterMs = new Date(crtNotAfter).getTime();
+      notAfter = new Date(notAfterMs).toLocaleDateString('en-IN');
+      daysLeft = Math.floor((notAfterMs - Date.now()) / 86400000);
+    }
+    if (tlsProbeData.not_before) {
+      notBeforeMs = new Date(tlsProbeData.not_before).getTime();
+      notBefore = new Date(notBeforeMs).toLocaleDateString('en-IN');
+    }
+    /* Override key algorithm from edge function if available */
     if (tlsProbeData.key_algorithm) profile.keyAlg = tlsProbeData.key_algorithm;
     if (tlsProbeData.key_size) profile.keySize = tlsProbeData.key_size;
+    /* Override subject from real cert */
+    if (tlsProbeData.subject) subject = 'CN=' + tlsProbeData.subject;
   }
 
   /* ── 4d. Alt-Svc h3 = HTTP/3 = QUIC = guaranteed TLS 1.3 ─ */
@@ -1388,108 +1447,169 @@ QSR._inferProfileFromCA = function (issuerL, host, crtCount, daysLeft, serverHea
 };
 
 /* ══════════════════════════════════════════════════════════════════
-   QUANTUM RISK SCORE v3 — Granular, differentiated scoring engine
-   Max possible: 100 | Designed to produce REAL spread across sites
-   Score bands: 85-100 Excellent, 65-84 Good, 40-64 Fair, <40 Poor
+   PQC READINESS SCORE v4 — IEEE 1363 / NIST FIPS 203/204/205 aligned
+   Reference: NIST SP 800-208, FIPS 203 (ML-KEM), FIPS 204 (ML-DSA),
+              FIPS 205 (SLH-DSA), NIST SP 800-131A Rev2, RFC 8446
+   Scoring factors (total 100 points):
+     35 — PQC algorithm presence (FIPS 203 ML-KEM hybrid evidence)
+     15 — TLS protocol version (RFC 8446 TLS 1.3 requirement)
+     15 — Key algorithm & size (NIST SP 800-131A Rev2 strength)
+     10 — Forward secrecy (RFC 7457 PFS mandate)
+     10 — Security headers (OWASP + HSTS maturity)
+      8 — Certificate health (CA/B Forum baseline)
+      4 — CT transparency (RFC 6962 SCT evidence)
+      3 — AEAD cipher quality (NIST SP 800-38D)
+   Buckets: Elite-PQC (76-100), Standard (51-75),
+            Legacy (26-50), Critical (0-25)
    ══════════════════════════════════════════════════════════════════ */
 QSR._calcQuantumScore = function (keyAlg, keySize, tls, ciphers, secScore, daysLeft, hasCAA, hstsMaxAge, crtCount, hasLiveTLSProbe, techFingerprint) {
   var score = 0;
   var suites = Array.isArray(ciphers) ? ciphers : [];
   var totalCiphers = suites.length || 1;
-  var pqcCiphers = suites.filter(function (c) { return c.quantum; });
-  var fsCiphers = suites.filter(function (c) { return c.forward; });
-  var aeadCiphers = suites.filter(function (c) {
-    return c.name.includes('GCM') || c.name.includes('CHACHA20') || c.name.includes('CCM');
+
+  /* Classify cipher suites */
+  var pqcCiphers  = suites.filter(function(c) { return c.quantum; });
+  var fsCiphers   = suites.filter(function(c) { return c.forward; });
+  var aeadCiphers = suites.filter(function(c) {
+    var n = c.name || '';
+    return n.includes('GCM') || n.includes('CHACHA20') || n.includes('POLY1305') || n.includes('CCM');
   });
-  var legacyCiphers = suites.filter(function (c) {
-    return c.name.includes('RC4') || c.name.includes('DES') || c.name.includes('3DES') ||
-      c.name.includes('MD5') || c.name.includes('EXPORT') || c.name.includes('NULL');
+  var legacyCiphers = suites.filter(function(c) {
+    var n = c.name || '';
+    return n.includes('RC4') || n.includes('_DES') || n.includes('3DES') ||
+           n.includes('NULL') || n.includes('EXPORT') || n.includes('anon') ||
+           (n.includes('CBC') && n.includes('SHA') && !n.includes('SHA256') && !n.includes('SHA384'));
   });
-  var rsaKexCiphers = suites.filter(function (c) { return c.name.includes('RSA_WITH'); });
-  var strong256 = suites.filter(function (c) { return (c.strength || 0) >= 256; });
-  var pqcRatio = pqcCiphers.length / totalCiphers;
-  var fsRatio = fsCiphers.length / totalCiphers;
-  var aeadRatio = aeadCiphers.length / totalCiphers;
+  var rsaKexCiphers = suites.filter(function(c) {
+    var n = c.name || '';
+    return n.startsWith('TLS_RSA_') || n.includes('RSA_WITH');
+  });
+
+  var pqcRatio    = pqcCiphers.length / totalCiphers;
+  var fsRatio     = fsCiphers.length / totalCiphers;
+  var aeadRatio   = aeadCiphers.length / totalCiphers;
   var rsaKexRatio = rsaKexCiphers.length / totalCiphers;
-  var strongRatio = strong256.length / totalCiphers;
-  var fingerprintFindings = techFingerprint && techFingerprint.findings ? techFingerprint.findings.length : 0;
+  var hasTLS13Ciphers = suites.some(function(c) { var n = c.name || ''; return n.startsWith('TLS_AES_') || n.startsWith('TLS_CHACHA'); });
 
-  /* 1. Key algorithm and crypto-agility baseline */
-  if (keyAlg === 'ECDSA') score += keySize >= 384 ? 12 : keySize >= 256 ? 9 : 5;
-  else if (keyAlg === 'Ed25519') score += 10;
-  else if (keyAlg === 'RSA') score += keySize >= 4096 ? 10 : keySize >= 3072 ? 7 : keySize >= 2048 ? 4 : 0;
-  else score += 2;
+  /* ────────────────────────────────────────────────────────────────
+     FACTOR 1 — PQC Algorithm Presence (35 points)
+     Ref: NIST FIPS 203 (ML-KEM), FIPS 204 (ML-DSA), FIPS 205 (SLH-DSA)
+     ──────────────────────────────────────────────────────────────── */
+  if (pqcCiphers.length > 0) {
+    /* Hybrid PQC detected (e.g. X25519Kyber768Draft00) */
+    if (pqcRatio >= 1.0) score += 35;           /* All negotiated ciphers are PQC-hybrid */
+    else if (pqcRatio >= 0.5) score += 28;      /* Majority PQC */
+    else score += 20;                           /* At least one PQC cipher present */
+  } else {
+    /* No PQC — only classical algorithms */
+    /* Partial credit for strong classical that is easiest to migrate */
+    if (keyAlg === 'ECDSA' && keySize >= 384) score += 6;  /* P-384 — closer to PQC-ready */
+    else if (keyAlg === 'ECDSA' && keySize >= 256) score += 4;
+    else if (keyAlg === 'Ed25519') score += 5;              /* Edwards curve, migration-friendly */
+    else if (keyAlg === 'RSA' && keySize >= 4096) score += 3; /* RSA-4096 provides some headroom */
+    /* No PQC penalty (per NIST SP 800-208 harvest-now-decrypt-later threat model) */
+    score -= 5;
+  }
 
-  if (!pqcCiphers.length && (keyAlg === 'RSA' || keyAlg === 'ECDSA' || keyAlg === 'Ed25519')) score -= 6;
+  /* ────────────────────────────────────────────────────────────────
+     FACTOR 2 — TLS Protocol Version (15 points)
+     Ref: RFC 8446 (TLS 1.3), NIST SP 800-52 Rev2
+     ──────────────────────────────────────────────────────────────── */
+  var tlsStr = String(tls || '').replace(/^TLSv?/i, '');
+  if (tlsStr === '1.3' || hasTLS13Ciphers) score += 15;
+  else if (tlsStr === '1.2' || tlsStr === '1.2+') {
+    /* TLS 1.2 with AEAD and ECDHE — acceptable but not optimal */
+    score += (aeadRatio >= 0.5 && fsRatio >= 0.5) ? 9 : 6;
+  }
+  else if (tlsStr === '1.1') score += 2;   /* Deprecated — MUST migrate */
+  else if (tlsStr === '1.0') score -= 5;   /* PCI-DSS non-compliant */
+  else score += 4;                         /* Unknown but not penalised heavily */
 
-  /* 2. Protocol maturity */
-  if (tls === '1.3') score += 14;
-  else if (tls === '1.2+' || tls === '1.2') score += 8;
-  else if (tls === '1.1') score += 2;
-  else score -= 4;
+  /* ────────────────────────────────────────────────────────────────
+     FACTOR 3 — Key Algorithm & Strength (15 points)
+     Ref: NIST SP 800-131A Rev2, Table 2 (security strengths)
+     ──────────────────────────────────────────────────────────────── */
+  if (keyAlg === 'ML-KEM' || keyAlg === 'KYBER') {
+    /* NIST FIPS 203 — PQC key encapsulation mechanism */
+    score += keySize >= 1024 ? 15 : keySize >= 768 ? 14 : 12;
+  } else if (keyAlg === 'ECDSA' || keyAlg === 'EC') {
+    /* NIST SP 800-131A: P-384 ≈ 192-bit security; P-256 ≈ 128-bit */
+    score += keySize >= 521 ? 13 : keySize >= 384 ? 11 : keySize >= 256 ? 8 : 5;
+  } else if (keyAlg === 'Ed25519' || keyAlg === 'EdDSA') {
+    score += 10;  /* 128-bit security, crypto-agile friendly */
+  } else if (keyAlg === 'RSA') {
+    /* RSA quantum vulnerability: Shor's algorithm — heavy penalty for small keys */
+    if (keySize >= 4096) score += 7;       /* marginal quantum headroom */
+    else if (keySize >= 3072) score += 5;  /* NIST minimum 2031+ */
+    else if (keySize >= 2048) score += 3;  /* acceptable today, migrate by 2030 */
+    else if (keySize >= 1024) score += 0;  /* NOT recommended — CRL/deprecation likely */
+    else score -= 5;                       /* CRITICAL — broken strength */
+  } else {
+    score += 2; /* Unknown algorithm — conservative estimate */
+  }
 
-  /* 3. PQC / hybrid negotiation evidence */
-  if (pqcRatio >= 0.75) score += 28;
-  else if (pqcRatio > 0.25) score += 22;
-  else if (pqcRatio > 0) score += 16;
-
-  /* 4. Forward secrecy */
-  if (fsRatio >= 1.0) score += 10;
+  /* ────────────────────────────────────────────────────────────────
+     FACTOR 4 — Forward Secrecy (10 points)
+     Ref: RFC 7457 §2.4, NIST SP 800-52 Rev2 §3.4
+     ──────────────────────────────────────────────────────────────── */
+  if (fsRatio >= 1.0) score += 10;       /* All ciphers use ephemeral key exchange */
   else if (fsRatio >= 0.75) score += 8;
   else if (fsRatio >= 0.5) score += 5;
   else if (fsRatio > 0) score += 2;
-  else score -= 5;
+  else score -= 5;                       /* No forward secrecy — high HNDL risk */
 
-  /* 5. AEAD quality */
-  if (aeadRatio >= 1.0) score += 8;
-  else if (aeadRatio >= 0.75) score += 6;
-  else if (aeadRatio >= 0.5) score += 4;
+  /* ────────────────────────────────────────────────────────────────
+     FACTOR 5 — Security Headers & HSTS Maturity (10 points)
+     Ref: OWASP Secure Headers Project, RFC 6797 (HSTS)
+     ──────────────────────────────────────────────────────────────── */
+  /* Headers score: 0-5 from secScore */
+  score += secScore >= 5 ? 5 : secScore >= 4 ? 4 : secScore >= 3 ? 3 : secScore >= 2 ? 2 : secScore >= 1 ? 1 : 0;
+  /* HSTS maxAge contribution (up to 5 points) */
+  if (hstsMaxAge && hstsMaxAge >= 63072000) score += 5;       /* 2 years — HSTS preload eligible */
+  else if (hstsMaxAge && hstsMaxAge >= 31536000) score += 3;  /* 1 year — recommended minimum */
+  else if (hstsMaxAge && hstsMaxAge >= 2592000) score += 1;   /* 30 days — minimal */
+  else if (!hstsMaxAge) score -= 2;                           /* No HSTS — downgrade attack risk */
+
+  /* ────────────────────────────────────────────────────────────────
+     FACTOR 6 — Certificate Health (8 points)
+     Ref: CA/B Forum Baseline Requirements, NIST SP 800-57 Part1
+     ──────────────────────────────────────────────────────────────── */
+  if (daysLeft === null || daysLeft === undefined) score += 1;  /* Unknown — neutral */
+  else if (daysLeft > 270) score += 8;       /* > 9 months: excellent hygiene */
+  else if (daysLeft > 90) score += 5;        /* 3-9 months: good */
+  else if (daysLeft > 30) score += 2;        /* 1-3 months: marginal */
+  else if (daysLeft > 7) score -= 3;         /* < 30 days: expiring soon */
+  else if (daysLeft > 0) score -= 8;         /* < 1 week: critical */
+  else score -= 12;                          /* Expired: immediate action */
+
+  /* ────────────────────────────────────────────────────────────────
+     FACTOR 7 — Certificate Transparency (4 points)
+     Ref: RFC 6962 (Certificate Transparency v1), RFC 9162 (CT v2)
+     ──────────────────────────────────────────────────────────────── */
+  if (crtCount >= 20) score += 4;          /* Many SCTs — strong CT participation */
+  else if (crtCount >= 5) score += 3;
+  else if (crtCount >= 1) score += 2;
+  else score -= 1;                         /* No CT entries — may bypass transparency */
+  /* CAA records = additional governance signal */
+  if (hasCAA) score += 1;
+
+  /* ────────────────────────────────────────────────────────────────
+     FACTOR 8 — AEAD Cipher Quality (3 points)
+     Ref: NIST SP 800-38D (GCM), RFC 7905 (ChaCha20-Poly1305)
+     ──────────────────────────────────────────────────────────────── */
+  if (aeadRatio >= 1.0) score += 3;
+  else if (aeadRatio >= 0.5) score += 2;
   else if (aeadRatio > 0) score += 1;
-  else score -= 4;
+  else score -= 2;   /* No AEAD — using CBC or stream ciphers: integrity risk */
 
-  /* 6. Browser-facing hardening signals */
-  score += secScore >= 5 ? 8 : secScore >= 4 ? 6 : secScore >= 3 ? 4 : secScore >= 2 ? 2 : secScore >= 1 ? 1 : 0;
+  /* ── Penalties for egregiously weak configurations ─────────── */
+  score -= Math.min(legacyCiphers.length * 6, 18);  /* per-cipher legacy penalty */
+  if (rsaKexRatio > 0.5) score -= 6;               /* static RSA key exchange kills PFS */
+  else if (rsaKexRatio > 0) score -= 2;
 
-  /* 7. HSTS maturity */
-  if (hstsMaxAge && hstsMaxAge >= 63072000) score += 5;
-  else if (hstsMaxAge && hstsMaxAge >= 31536000) score += 3;
-  else if (hstsMaxAge && hstsMaxAge >= 2592000) score += 1;
-
-  /* 8. DNS issuance governance */
-  if (hasCAA) score += 3;
-
-  /* 9. Certificate transparency evidence */
-  if (crtCount >= 10) score += 3;
-  else if (crtCount >= 3) score += 2;
-  else if (crtCount >= 1) score += 1;
-  else score -= 2;
-
-  /* 10. Legacy cryptography penalties */
-  score -= Math.min(legacyCiphers.length * 5, 15);
-
-  /* 11. Static RSA key exchange penalty */
-  if (rsaKexRatio === 0) score += 3;
-  else if (rsaKexRatio <= 0.25) score += 0;
-  else if (rsaKexRatio <= 0.5) score -= 3;
-  else score -= 7;
-
-  /* 12. Certificate health */
-  if (daysLeft > 270) score += 3;
-  else if (daysLeft > 180) score += 2;
-  else if (daysLeft > 90) score += 1;
-  else if (daysLeft > 30) score -= 2;
-  else if (daysLeft > 7) score -= 5;
-  else if (daysLeft > 0) score -= 10;
-  else score -= 15;
-
-  /* 13. Strong cipher dominance */
-  if (strongRatio >= 0.75) score += 2;
-  else if (strongRatio < 0.25) score -= 2;
-
-  /* 14. Confidence bonuses from deeper evidence collection */
-  if (hasLiveTLSProbe) score += 4;
-  if (fingerprintFindings >= 3) score += 2;
-  else if (fingerprintFindings === 0) score -= 1;
+  /* ── Live TLS probe quality bonus ──────────────────────────── */
+  /* When we have real handshake data, add confidence bonus */
+  if (hasLiveTLSProbe) score += 2;
 
   return Math.max(0, Math.min(Math.round(score), 100));
 };

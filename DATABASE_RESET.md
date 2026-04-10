@@ -33,6 +33,7 @@
 ## 📁 Files You Need
 
 Location: `supabase/`
+
 - `clear-data.sql` — Removes all scan, asset, and test data
 - `fresh-seed.sql` — Populates with 8 sample PNB assets + related data
 - `CLEANUP_GUIDE.md` — Detailed documentation
@@ -42,6 +43,7 @@ Location: `supabase/`
 ## ✅ What Gets Reset
 
 **Cleared:**
+
 - All assets from Asset Inventory
 - All domains and DNS records
 - All SSL certificates
@@ -51,6 +53,7 @@ Location: `supabase/`
 - All reports and audit logs
 
 **Preserved:**
+
 - User accounts and authentication
 - Database schema
 - RLS (Row-Level Security) policies
@@ -69,6 +72,7 @@ Location: `supabase/`
 8. **Data Warehouse** - Tier 1, Low Risk
 
 Each asset includes:
+
 - SSL certificates
 - Vulnerable software components
 - Cyber ratings
@@ -95,10 +99,11 @@ After loading fresh data:
 **Supabase Project**: `https://shinmrlkbaggbwpzhlcl.supabase.co`
 
 To run SQL directly in Node.js:
+
 ```javascript
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 const supabase = createClient(url, key);
-const { data, error } = await supabase.from('assets').select('*');
+const { data, error } = await supabase.from("assets").select("*");
 ```
 
 ---

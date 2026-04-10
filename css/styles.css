@@ -982,3 +982,51 @@ html,body { height:100%; font-family:'Exo 2',sans-serif; font-size:14px; color:v
 .tl-body { font-size: 13px; }
 
 
+
+/* ===============================================================
+   PRODUCTION UI FIXES - Overflow, Responsive, Scanner Panels
+   =============================================================== */
+
+/* Table overflow: data tables scroll horizontally on narrow panels */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* Grid responsiveness */
+@media (max-width: 1200px) {
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .audit-stats-strip { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 780px) {
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .audit-stats-strip { grid-template-columns: repeat(2, 1fr); }
+  .pqc-tier-grid { grid-template-columns: repeat(2, 1fr); }
+  .report-cards-grid { grid-template-columns: repeat(2, 1fr); }
+  .page-header { flex-direction: column; align-items: flex-start; }
+}
+@media (max-width: 520px) {
+  .pqc-tier-grid { grid-template-columns: 1fr; }
+  .audit-stats-strip { grid-template-columns: 1fr 1fr; }
+  .kpi-strip { grid-template-columns: 1fr 1fr; }
+  .terminal-topbar { flex-wrap: wrap; gap: 6px; }
+  :root { --sidebar-w: 50px; }
+}
+
+/* Scanner result panels */
+.risk-banner { word-break: break-word; overflow-wrap: anywhere; }
+#cipher-matrix code, .detail-val code { word-break: break-all; white-space: normal; font-size: 11px; }
+
+/* Canvas constraint */
+canvas { max-width: 100% !important; }
+
+/* Reporting charts height cap */
+#chart-rep-tls, #chart-rep-keys, #chart-rep-pqc { max-height: 220px !important; }
+
+/* Network graph */
+#network-graph-container { max-width: 100%; overflow: hidden; }
+#network-graph-container svg { max-width: 100%; height: auto; }
+
+/* Main content scrollbar */
+.page-content::-webkit-scrollbar { width: 6px; }
+.page-content::-webkit-scrollbar-thumb { background: rgba(139,26,47,0.3); border-radius: 3px; }
+
+/* Button overflow guard */
+.page-header .btn-export, .page-header button { white-space: nowrap; flex-shrink: 0; }
