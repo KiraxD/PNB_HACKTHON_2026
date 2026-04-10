@@ -535,9 +535,15 @@ window.QSR_DataLayer = (function () {
     if (!ready()) return false;
 
     var user = currentUser();
+    /* RLS on audit_log requires auth.uid() = user_id — skip if no authenticated session */
+    if (!user || !user.id) {
+      console.debug('[DataLayer] logAction skipped — no authenticated user');
+      return false;
+    }
+
     try {
       var result = await db().from('audit_log').insert({
-        user_id: user && user.id ? user.id : null,
+        user_id: user.id,
         action: action,
         target: target || null,
         ip_addr: '-',
