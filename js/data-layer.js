@@ -238,6 +238,7 @@ window.QSR_DataLayer = (function () {
       qrScore: score,
       bucket: bucket,
       pqcBucket: bucket,
+      tls: asset.tls_version || asset.tls || '',
       lastScan: asset.last_scan ? new Date(asset.last_scan).toLocaleString('en-IN') : (asset.lastScan || 'Never')
     };
   }

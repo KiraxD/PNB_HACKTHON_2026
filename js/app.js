@@ -83,78 +83,73 @@ window.addEventListener('qsr:data-sync', function() {
    HOME PAGE
    ====================================================== */
 function pageHome() {
-  var d = QSR;
-  return '<div style="font-family:Rajdhani;font-size:20px;font-weight:700;color:#8b1a2f;margin-bottom:12px;">Security Overview - QSecure Radar</div>' +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:14px;">' +
-    kpiCard('Assets Discovered',    d.summary.assetCount,          '#4299e1', 'Total internet-facing assets (FR4)') +
-    kpiCard('Avg QR Score (0-100)', d.summary.avgRiskScore + '/100','#e53e3e', 'Average Quantum Risk Score (FR9)') +
-    kpiCard('CBOM Vulnerabilities', d.summary.cbomVulns,           '#ed8936', 'Weak crypto components (FR8)') +
-    kpiCard('PQC-Ready Assets',     d.summary.pqcReady + '%',      '#48bb78', 'Classified PQC-compliant (FR10)') +
-    kpiCard('Expiring Certs',       d.summary.expiringCerts,       '#ecc94b', 'Within 30 days (FR7)') +
-    kpiCard('Critical Tier-4',      d.summary.criticalCount,       '#c53030', 'Immediate action needed (FR10)') +
+  return '<div id="home-kpi-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:14px;">' +
+    kpiCard('Assets Discovered',    '—', '#4299e1', 'Total internet-facing assets (FR4)',    'home-kpi-assets') +
+    kpiCard('PNB Domains',          '—', '#8b1a2f', 'PNB-owned scanned assets',             'home-kpi-pnb') +
+    kpiCard('3rd-Party Domains',    '—', '#4299e1', 'External/vendor domains scanned',       'home-kpi-third') +
+    kpiCard('Avg QR Score',         '—', '#e53e3e', 'Average Quantum Risk Score (FR9)',      'home-kpi-score') +
+    kpiCard('PQC-Ready',            '—', '#48bb78', 'Classified PQC-compliant (FR10)',       'home-kpi-pqc') +
+    kpiCard('Critical Assets',      '—', '#c53030', 'QR Score ≤ 25 — immediate action',     'home-kpi-critical') +
     '</div>' +
 
     '<div class="grid-2">' +
+    /* Left: audit feed */
     '<div class="panel"><div class="panel-title">Recent Security Events (FR15)</div>' +
-    '<div id="home-audit-feed">' +
-    d.recentScans.map(function(s) {
-      var dotClass = (s.icon === 'alert' || s.msg.toUpperCase().includes('VULN') || s.msg.toUpperCase().includes('FAIL')) ? 'critical' :
-                     (s.msg.toUpperCase().includes('WARN') || s.msg.toUpperCase().includes('EXPIR')) ? 'warning' : 'info';
-      return '<div class="alert-item"><div class="alert-dot ' + dotClass + '"></div>' +
-        '<div><div style="font-size:13px;font-weight:600;color:#1a1a2e;">' + s.msg + '</div>' +
-        '<div style="font-size:11px;color:#888;">' + s.time + '</div></div></div>';
-    }).join('') +
-    '<br><a style="font-size:13px;color:#8b1a2f;font-weight:600;cursor:pointer;" onclick="navigateTo(\'audit-log\')">View Full Audit Log (FR15) &rarr;</a>' +
+    '<div id="home-audit-feed"><div class="skeleton-line"></div><div class="skeleton-line"></div><div class="skeleton-line"></div></div>' +
+    '<br><a style="font-size:13px;color:#8b1a2f;font-weight:600;cursor:pointer;" onclick="navigateTo(\'audit-log\')">View Full Audit Log &rarr;</a>' +
+    '</div>' +
+    /* Right: risk distribution */
+    '<div class="panel"><div class="panel-title">Quantum Risk Distribution (FR9)</div>' +
+    '<canvas id="chart-home-risk" data-h="150" style="width:100%;display:block;"></canvas>' +
+    '<div id="home-risk-bars" style="margin-top:10px;">' +
+    '<div class="progress-bar-wrap"><div class="progress-label"><span style="color:#e53e3e;font-weight:700;">Critical (0-25)</span><span id="home-pb-critical">— assets</span></div><div class="progress-bar"><div id="home-pf-critical" class="progress-fill" style="width:0%;background:#e53e3e;"></div></div></div>' +
+    '<div class="progress-bar-wrap"><div class="progress-label"><span style="color:#ed8936;font-weight:700;">High (26-50)</span><span id="home-pb-high">— assets</span></div><div class="progress-bar"><div id="home-pf-high" class="progress-fill" style="width:0%;background:#ed8936;"></div></div></div>' +
+    '<div class="progress-bar-wrap"><div class="progress-label"><span style="color:#ecc94b;font-weight:700;">Moderate (51-75)</span><span id="home-pb-moderate">— assets</span></div><div class="progress-bar"><div id="home-pf-moderate" class="progress-fill" style="width:0%;background:#ecc94b;"></div></div></div>' +
+    '<div class="progress-bar-wrap"><div class="progress-label"><span style="color:#48bb78;font-weight:700;">PQC-Ready (76-100)</span><span id="home-pb-ready">— assets</span></div><div class="progress-bar"><div id="home-pf-ready" class="progress-fill" style="width:0%;background:#48bb78;"></div></div></div>' +
     '</div></div>' +
-
-    '<div class="panel"><div class="panel-title">Quantum Risk Distribution (FR9 - 0 to 100)</div>' +
-    '<canvas id="chart-home-risk" data-h="160" style="width:100%;display:block;"></canvas>' +
-    '<div style="margin-top:10px;">' +
-    [['Critical (0-25)','#e53e3e',d.summary.criticalCount],['High (26-50)','#ed8936',3],['Moderate (51-75)','#ecc94b',2],['PQC-Ready (76-100)','#48bb78',3]].map(function(x){
-      return '<div class="progress-bar-wrap"><div class="progress-label"><span style="color:'+x[1]+';font-weight:700;">'+x[0]+'</span><span>'+x[2]+' assets</span></div>' +
-        '<div class="progress-bar"><div class="progress-fill" style="width:'+Math.round(x[2]/10*100)+'%;background:'+x[1]+';"></div></div></div>';
-    }).join('') + '</div></div>' +
     '</div>' +
 
     '<div class="grid-3">' +
+    /* PQC compliance donut */
     '<div class="panel"><div class="panel-title">PQC Compliance (FR10)</div>' +
     '<div style="text-align:center;"><canvas id="chart-home-pqc" data-h="130" style="width:100%;display:block;"></canvas></div>' +
-    '<div style="font-size:12px;text-align:center;color:#4a4a6a;margin-top:4px;">CRYSTALS-Kyber migration target</div>' +
+    '<div style="font-size:12px;text-align:center;color:#4a4a6a;margin-top:4px;">ML-KEM / CRYSTALS-Kyber target</div>' +
     '</div>' +
-
-    '<div class="panel"><div class="panel-title">TLS Distribution (FR5)</div>' +
+    /* TLS distribution */
+    '<div class="panel"><div class="panel-title">TLS Version Distribution (FR5)</div>' +
     '<canvas id="chart-home-tls" data-h="130" style="width:100%;display:block;"></canvas>' +
     '</div>' +
-
-    '<div class="panel"><div class="panel-title">Quick Actions</div>' +
-    '<div style="display:flex;flex-direction:column;gap:8px;">' +
-    '<button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="navigateTo(\'asset-discovery\')">Run New Scan (FR13)</button>' +
-    '<button class="btn btn-secondary" style="width:100%;justify-content:center;" onclick="navigateTo(\'cbom\')">Generate CBOM (FR8)</button>' +
-    '<button class="btn btn-outline" style="width:100%;justify-content:center;" onclick="navigateTo(\'reporting\')">Create Report (FR14)</button>' +
-    '<button class="btn btn-outline" style="width:100%;justify-content:center;" onclick="navigateTo(\'audit-log\')">Audit Log (FR15)</button>' +
+    /* PNB vs 3rd-Party domain split */
+    '<div class="panel"><div class="panel-title">Domain Portfolio</div>' +
+    '<div style="text-align:center;"><canvas id="chart-home-domains" data-h="110" style="width:100%;display:block;"></canvas></div>' +
+    '<div id="home-domain-split" style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;"><span style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#8b1a2f;"><span style="width:10px;height:10px;border-radius:50%;background:#8b1a2f;display:inline-block;"></span>PNB Domains</span><span id="home-split-pnb" style="font-family:Rajdhani;font-size:18px;font-weight:700;color:#8b1a2f;">—</span></div>' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;"><span style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#4299e1;"><span style="width:10px;height:10px;border-radius:50%;background:#4299e1;display:inline-block;"></span>3rd-Party</span><span id="home-split-third" style="font-family:Rajdhani;font-size:18px;font-weight:700;color:#4299e1;">—</span></div>' +
+    '<div style="margin-top:4px;"><button class="dbs-btn" style="width:100%;text-align:center;border:1px solid rgba(139,26,47,0.2);border-radius:7px;padding:6px 10px;font-size:11px;" onclick="navigateTo(\'asset-inventory\')">View Asset Inventory &rarr;</button></div>' +
     '</div></div>' +
     '</div>';
 }
 
-function kpiCard(label, value, color, desc) {
+
+function kpiCard(label, value, color, desc, id) {
   return '<div style="background:rgba(255,255,255,0.88);border-radius:10px;padding:14px 16px;border-left:4px solid ' + color + ';box-shadow:0 2px 8px rgba(0,0,0,0.08);" title="' + desc + '">' +
     '<div style="font-size:11px;color:#4a4a6a;text-transform:uppercase;font-weight:600;letter-spacing:0.5px;">' + label + '</div>' +
-    '<div style="font-family:Rajdhani;font-size:30px;font-weight:700;color:' + color + ';line-height:1.1;margin:4px 0;">' + value + '</div>' +
+    '<div ' + (id ? 'id="' + id + '"' : '') + ' style="font-family:Rajdhani;font-size:30px;font-weight:700;color:' + color + ';line-height:1.1;margin:4px 0;">' + value + '</div>' +
     '<div style="font-size:11px;color:#aaa;">' + desc + '</div>' +
     '</div>';
 }
 
 function initHome() {
-  /* Draw charts with static defaults first — will be updated with live data */
+  /* Draw zero-state charts first for instant render */
   QSR.drawBars('chart-home-risk', [
-    {label:'0-25 Critical',value:0,color:'#e53e3e'},
-    {label:'26-50 High',   value:0,color:'#ed8936'},
-    {label:'51-75 Mod',    value:0,color:'#ecc94b'},
-    {label:'76-100 PQC',   value:0,color:'#48bb78'}
+    {label:'0-25',value:0,color:'#e53e3e'},
+    {label:'26-50',value:0,color:'#ed8936'},
+    {label:'51-75',value:0,color:'#ecc94b'},
+    {label:'76-100',value:0,color:'#48bb78'}
   ]);
   QSR.drawDonut('chart-home-pqc', [
-    {label:'PQC-Ready', value:0, color:'#48bb78'},
-    {label:'At Risk',   value:0, color:'#e53e3e'}
+    {label:'PQC-Ready',value:0,color:'#48bb78'},
+    {label:'At Risk',  value:0,color:'#e53e3e'}
   ], '0%', 'Ready');
   QSR.drawBars('chart-home-tls', [
     {label:'TLS 1.3',value:0,color:'#48bb78'},
@@ -162,11 +157,16 @@ function initHome() {
     {label:'TLS 1.1',value:0,color:'#ed8936'},
     {label:'TLS 1.0',value:0,color:'#e53e3e'}
   ]);
+  QSR.drawDonut('chart-home-domains', [
+    {label:'PNB',      value:0, color:'#8b1a2f'},
+    {label:'3rd-Party',value:0, color:'#4299e1'}
+  ], '0', 'Domains');
 
   if (!window.QSR_DataLayer) return;
   var DL = window.QSR_DataLayer;
+  var setEl = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
 
-  /* ── Live audit feed ───────────────────────────────────────── */
+  /* ── Live audit feed ── */
   DL.fetchAuditLog(8).then(function(rows) {
     if (!rows || !rows.length) return;
     var feed = document.getElementById('home-audit-feed');
@@ -181,63 +181,92 @@ function initHome() {
       '<br><a style="font-size:13px;color:#8b1a2f;font-weight:600;cursor:pointer;" onclick="navigateTo(\'audit-log\')">View Full Audit Log &rarr;</a>';
   });
 
-  /* ── Live KPI cards ─────────────────────────────────────────── */
+  /* ── Live KPIs + all charts ── */
   Promise.all([
     DL.fetchAssets(),
     DL.fetchCyberRating(),
     DL.fetchPQCScores(),
     DL.fetchCBOM()
   ]).then(function(results) {
-    var assets  = results[0] || [];
-    var rating  = results[1] || {};
-    var pqc     = results[2] || {};
-    var cbom    = results[3] || {};
+    var assets = results[0] || [];
+    var rating = results[1] || {};
+    var pqc    = results[2] || {};
+    var cbom   = results[3] || {};
 
-    var assetCount    = assets.length;
-    var avgQR         = Number(rating.enterpriseScore) || 0;
-    var cbomVulns     = Number(cbom.weakCrypto) || 0;
-    var pqcReadyPct   = pqc.elitePct !== undefined ? pqc.elitePct : 0;
-    var expiringCerts = assets.filter(function(a){ return a.cert === 'Expiring' || a.cert === 'Expired'; }).length;
-    var criticalCount = (pqc.criticalApps !== undefined ? pqc.criticalApps : 0);
-    var riskCounts = {
-      critical: assets.filter(function(a) { return (a.qrScore || 0) <= 25; }).length,
-      high: assets.filter(function(a) { var s = a.qrScore || 0; return s >= 26 && s <= 50; }).length,
-      moderate: assets.filter(function(a) { var s = a.qrScore || 0; return s >= 51 && s <= 75; }).length,
-      ready: assets.filter(function(a) { return (a.qrScore || 0) >= 76; }).length
-    };
-    var bucketCounts = {
-      ready: assets.filter(function(a) { return a.pqcBucket === 'Elite-PQC'; }).length,
-      atRisk: assets.filter(function(a) { return a.pqcBucket !== 'Elite-PQC'; }).length
-    };
+    /* Domain split */
+    var pnbAssets   = assets.filter(function(a) { return isPNBDomain(a.url || a.name); });
+    var thirdAssets = assets.filter(function(a) { return !isPNBDomain(a.url || a.name); });
 
-    /* Re-render the entire KPI row with fresh live data */
-    var kpiRow = document.querySelector('.fade-in > div:first-child');
-    if (kpiRow && kpiRow.style && kpiRow.style.display === 'grid') {
-      kpiRow.innerHTML =
-        kpiCard('Assets Discovered',    assetCount,             '#4299e1', 'Total internet-facing assets (FR4)') +
-        kpiCard('Avg QR Score (0-100)', avgQR + '/100',         '#e53e3e', 'Average Quantum Risk Score (FR9)') +
-        kpiCard('CBOM Vulnerabilities', cbomVulns,              '#ed8936', 'Weak crypto components (FR8)') +
-        kpiCard('PQC-Ready Assets',     pqcReadyPct + '%',      '#48bb78', 'Classified PQC-compliant (FR10)') +
-        kpiCard('Expiring Certs',       expiringCerts,          '#ecc94b', 'Within 30 days (FR7)') +
-        kpiCard('Critical Tier-4',      criticalCount,          '#c53030', 'Immediate action needed (FR10)');
+    /* Risk buckets */
+    var total    = assets.length || 1;
+    var riskC    = assets.filter(function(a){ return (a.qrScore||0) <= 25; }).length;
+    var riskH    = assets.filter(function(a){ var s=a.qrScore||0; return s>=26&&s<=50; }).length;
+    var riskM    = assets.filter(function(a){ var s=a.qrScore||0; return s>=51&&s<=75; }).length;
+    var riskR    = assets.filter(function(a){ return (a.qrScore||0) >= 76; }).length;
+
+    /* TLS distribution from stored assets */
+    var tls13 = assets.filter(function(a){ return (a.tls||'').includes('1.3'); }).length;
+    var tls12 = assets.filter(function(a){ return (a.tls||'').includes('1.2'); }).length;
+    var tls11 = assets.filter(function(a){ return (a.tls||'').includes('1.1'); }).length;
+    var tls10 = assets.filter(function(a){ return (a.tls||'').includes('1.0'); }).length;
+
+    var avgQR       = Number(rating.enterpriseScore) || 0;
+    var cbomVulns   = Number(cbom.weakCrypto) || 0;
+    var pqcReadyPct = pqc.elitePct !== undefined ? pqc.elitePct : 0;
+    var critCount   = pqc.criticalApps !== undefined ? pqc.criticalApps : riskC;
+    var expiring    = assets.filter(function(a){ return a.cert === 'Expiring' || a.cert === 'Expired'; }).length;
+
+    /* ── KPI tiles ── */
+    setEl('home-kpi-assets',   assets.length);
+    setEl('home-kpi-pnb',      pnbAssets.length);
+    setEl('home-kpi-third',    thirdAssets.length);
+    setEl('home-kpi-score',    avgQR + '/100');
+    setEl('home-kpi-pqc',      pqcReadyPct + '%');
+    setEl('home-kpi-critical', critCount);
+
+    /* ── Progress bars: animated widths ── */
+    var maxRisk = Math.max(riskC, riskH, riskM, riskR, 1);
+    function setPB(id, pfId, count) {
+      setEl(id, count + ' assets');
+      var pf = document.getElementById(pfId);
+      if (pf) { pf.style.transition = 'width 0.7s ease'; pf.style.width = Math.round(count / maxRisk * 100) + '%'; }
     }
+    setPB('home-pb-critical', 'home-pf-critical', riskC);
+    setPB('home-pb-high',     'home-pf-high',     riskH);
+    setPB('home-pb-moderate', 'home-pf-moderate', riskM);
+    setPB('home-pb-ready',    'home-pf-ready',    riskR);
 
-    /* Update PQC donut chart with live data */
-    QSR.drawDonut('chart-home-pqc', [
-      {label:'PQC-Ready', value: bucketCounts.ready, color:'#48bb78'},
-      {label:'At Risk',   value: bucketCounts.atRisk, color:'#e53e3e'}
-    ], pqcReadyPct + '%', 'Ready');
-
+    /* ── Charts ── */
     QSR.drawBars('chart-home-risk', [
-      {label:'0-25 Critical', value: riskCounts.critical, color:'#e53e3e'},
-      {label:'26-50 High',    value: riskCounts.high, color:'#ed8936'},
-      {label:'51-75 Mod',     value: riskCounts.moderate, color:'#ecc94b'},
-      {label:'76-100 PQC',    value: riskCounts.ready, color:'#48bb78'}
+      {label:'0-25 Critical', value:riskC, color:'#e53e3e'},
+      {label:'26-50 High',    value:riskH, color:'#ed8936'},
+      {label:'51-75 Mod',     value:riskM, color:'#ecc94b'},
+      {label:'76-100 PQC',   value:riskR, color:'#48bb78'}
     ]);
+    QSR.drawDonut('chart-home-pqc', [
+      {label:'PQC-Ready', value: assets.filter(function(a){ return a.pqcBucket==='Elite-PQC'; }).length, color:'#48bb78'},
+      {label:'At Risk',   value: assets.filter(function(a){ return a.pqcBucket!=='Elite-PQC'; }).length, color:'#e53e3e'}
+    ], pqcReadyPct + '%', 'Ready');
+    QSR.drawBars('chart-home-tls', [
+      {label:'TLS 1.3', value:tls13, color:'#48bb78'},
+      {label:'TLS 1.2', value:tls12, color:'#ecc94b'},
+      {label:'TLS 1.1', value:tls11, color:'#ed8936'},
+      {label:'TLS 1.0', value:tls10, color:'#e53e3e'}
+    ]);
+    QSR.drawDonut('chart-home-domains', [
+      {label:'PNB',       value:pnbAssets.length,   color:'#8b1a2f'},
+      {label:'3rd-Party', value:thirdAssets.length, color:'#4299e1'}
+    ], assets.length + '', 'Domains');
+
+    /* ── Domain split counters ── */
+    setEl('home-split-pnb',   pnbAssets.length);
+    setEl('home-split-third', thirdAssets.length);
+
   }).catch(function(e) {
-    console.warn('[Home] Live KPI fetch error:', e.message);
+    console.warn('[Home] Live data fetch error:', e.message);
   });
 }
+
 
 /* ======================================================
    ASSET INVENTORY PAGE

@@ -1116,3 +1116,25 @@ canvas { max-width: 100% !important; }
 .inv-row-anim {
   will-change: opacity, transform;
 }
+
+/* ===============================================================
+   SKELETON LOADER for audit feed
+   =============================================================== */
+.skeleton-line {
+  height: 14px;
+  background: linear-gradient(90deg, rgba(139,26,47,0.06) 25%, rgba(139,26,47,0.12) 50%, rgba(139,26,47,0.06) 75%);
+  background-size: 200% 100%;
+  border-radius: 6px;
+  margin: 10px 0;
+  animation: skeleton-sweep 1.5s ease-in-out infinite;
+}
+.skeleton-line:nth-child(2) { width: 80%; }
+.skeleton-line:nth-child(3) { width: 60%; }
+
+@keyframes skeleton-sweep {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Domain Portfolio chart panel */
+#chart-home-domains { display: block; }
