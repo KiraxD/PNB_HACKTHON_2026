@@ -129,7 +129,7 @@ window.initCyberRating = async function() {
     var s = a.score || 0;
     var pct = Math.min(s, 100);
     var c = s >= 76 ? '#48bb78' : s >= 51 ? '#4299e1' : s >= 26 ? '#ecc94b' : '#e53e3e';
-    var tls = tlsMap[a.status] || '1.2';
+    var tls = (a.tls && a.tls !== '-') ? a.tls : (tlsMap[a.status] || '1.2');
     var pqcBadge = a.pqcSupport
       ? '<span class="badge badge-ok">YES</span>'
       : '<span class="badge badge-danger">NO</span>';

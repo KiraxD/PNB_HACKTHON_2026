@@ -43,14 +43,14 @@ QSR.pages.pqc = async function(container) {
     <div class="panel-title">PQC Migration Progress</div>
     <div style="display:flex;justify-content:space-between;font-size:13px;color:#4a4a6a;margin-bottom:8px;">
       <span>Current: <strong id="pqc-elite-pct">0</strong>% ready</span>
-      <span>Target: <strong style="color:#48bb78;">60%</strong> by December 2026</span>
+      <span>Target: <strong style="color:#48bb78;"><span id="pqc-target-pct">60</span>%</strong> by December 2026</span>
     </div>
     <div style="position:relative;background:rgba(0,0,0,0.08);border-radius:8px;height:20px;overflow:visible;">
       <div id="pqc-progress-fill" style="height:100%;background:linear-gradient(90deg,#48bb78,#4299e1);border-radius:8px;width:0%;transition:width 1s ease;position:relative;">
         <div style="position:absolute;right:-1px;top:-4px;width:3px;height:28px;background:#fff;border-radius:2px;box-shadow:0 2px 6px rgba(0,0,0,0.2);"></div>
       </div>
-      <div style="position:absolute;left:60%;top:-8px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;">
-        <div style="font-size:10px;color:#48bb78;font-weight:700;white-space:nowrap;">60% target</div>
+      <div id="pqc-target-marker" style="position:absolute;left:60%;top:-8px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;">
+        <div style="font-size:10px;color:#48bb78;font-weight:700;white-space:nowrap;"><span id="pqc-target-label">60</span>% target</div>
         <div style="width:2px;height:36px;background:rgba(72,187,120,0.6);margin-top:2px;"></div>
       </div>
     </div>
@@ -117,6 +117,15 @@ QSR.pages.pqc = async function(container) {
   countUp('pqc-legacy', legacy);
   countUp('pqc-crit', critical);
   countUp('pqc-elite-pct', elitePct, '%');
+
+  /* Dynamic target logic: minimum 60, or current + 20% */
+  var targetPct = Math.max(60, Math.min(100, elitePct + 25));
+  var tLabel1 = document.getElementById('pqc-target-pct');
+  var tLabel2 = document.getElementById('pqc-target-label');
+  var tMarker = document.getElementById('pqc-target-marker');
+  if (tLabel1) tLabel1.textContent = targetPct;
+  if (tLabel2) tLabel2.textContent = targetPct;
+  if (tMarker) tMarker.style.left = targetPct + '%';
 
   setTimeout(function() {
     var fill = document.getElementById('pqc-progress-fill');

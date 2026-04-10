@@ -417,7 +417,7 @@ window.QSR_DataLayer = (function () {
     if (!ready()) return emptyPQCPosture();
 
     var raw = await query('pqc_scores', {
-      select: 'id, asset_id, asset_name, score, status, pqc_support, assessed_at, assets(name)',
+      select: 'id, asset_id, asset_name, score, status, pqc_support, assessed_at, assets(name, tls_version)',
       order: 'assessed_at',
       asc: false
     });
@@ -436,7 +436,8 @@ window.QSR_DataLayer = (function () {
           name: row.asset_name || (row.assets && row.assets.name) || '-',
           score: score,
           status: row.status || bucketFromScore(score),
-          pqcSupport: !!row.pqc_support
+          pqcSupport: !!row.pqc_support,
+          tls: (row.assets && row.assets.tls_version) ? row.assets.tls_version : '-'
         };
       });
     } else {
@@ -446,7 +447,8 @@ window.QSR_DataLayer = (function () {
           name: asset.name,
           score: asset.qrScore || 0,
           status: asset.pqcBucket || bucketFromScore(asset.qrScore || 0),
-          pqcSupport: (asset.qrScore || 0) >= 76
+          pqcSupport: (asset.qrScore || 0) >= 76,
+          tls: asset.tls || '-'
         };
       });
     }

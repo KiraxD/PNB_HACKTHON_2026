@@ -282,11 +282,11 @@ function pageAssetInventory() {
 
     '<div class="grid-2" style="margin-bottom:12px;">' +
     '<div class="panel"><div class="panel-title">Asset Type Distribution</div>' +
-    '<div style="display:flex;align-items:center;gap:14px;">' +
-    '<canvas id="chart-inv-types" data-h="130" style="width:100%;display:block;"></canvas>' +
-    '<div style="flex:1;">' +
-    [['Web Apps','#4299e1'],['APIs','#48bb78'],['Servers','#ed8936'],['VPN/Other','#e53e3e'],['Internal','#ecc94b']].map(function(x){
-      return '<div class="stat-row"><span class="stat-key" style="color:'+x[1]+';font-weight:700;">'+x[0]+'</span><span class="stat-val" id="inv-count-'+x[0].replace(/[^a-z]/gi,'').toLowerCase()+'">—</span></div>';
+    '<div style="display:flex;align-items:center;gap:12px;min-height:140px;">' +
+    '<div style="flex:0 0 auto;width:130px;"><canvas id="chart-inv-types" data-h="130" style="width:130px;height:130px;display:block;"></canvas></div>' +
+    '<div style="flex:1;min-width:0;">' +
+    [['Web Apps','#4299e1','webapps'],['APIs','#48bb78','apis'],['Servers','#ed8936','servers'],['VPN/Other','#e53e3e','vpnother'],['Internal','#ecc94b','internal']].map(function(x){
+      return '<div class="stat-row" style="flex-wrap:nowrap;"><span class="stat-key" style="color:'+x[1]+';font-weight:700;white-space:nowrap;min-width:80px;">'+x[0]+'</span><span class="stat-val" id="inv-count-'+x[2]+'">—</span></div>';
     }).join('') +
     '</div></div></div>' +
 
@@ -366,6 +366,19 @@ function initAssetInventory() {
     setEl('kpi-3p-count',  thirdAssets.length);
     setEl('kpi-expiring',  assets.filter(function(a){ return a.cert === 'Expiring' || a.cert === 'Expired'; }).length);
     setEl('kpi-highrisk',  assets.filter(function(a){ return a.risk === 'Critical' || a.risk === 'High'; }).length);
+
+    /* Asset type counts for legend */
+    var webapps  = assets.filter(function(a){ return a.type === 'Web App'; }).length;
+    var apis     = assets.filter(function(a){ return a.type === 'API Gateway' || (a.type||'').toLowerCase().includes('api'); }).length;
+    var servers  = assets.filter(function(a){ return (a.type||'').toLowerCase().includes('server'); }).length;
+    var vpn      = assets.filter(function(a){ return (a.type||'').toLowerCase().includes('vpn'); }).length;
+    var internal = assets.filter(function(a){ return (a.type||'').toLowerCase().includes('internal'); }).length;
+    setEl('inv-count-webapps',  webapps);
+    setEl('inv-count-apis',     apis);
+    setEl('inv-count-servers',  servers);
+    setEl('inv-count-vpnother', vpn);
+    setEl('inv-count-internal', internal);
+
     QSR.drawDonut('chart-inv-types', [
       {label:'Web Apps',value:assets.filter(function(a){ return a.type === 'Web App'; }).length,color:'#4299e1'},
       {label:'APIs',value:assets.filter(function(a){ return a.type === 'API Gateway'; }).length,color:'#48bb78'},
