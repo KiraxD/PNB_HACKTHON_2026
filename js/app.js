@@ -245,9 +245,8 @@ function initHome() {
 function pageAssetInventory() {
   return '<div class="kpi-strip">' +
     '<div class="kpi-tile"><div class="kpi-label">Total Assets</div><div class="kpi-value" id="kpi-total">—</div><div class="kpi-icon">&#128736;</div></div>' +
-    '<div class="kpi-tile"><div class="kpi-label">Web Apps</div><div class="kpi-value" id="kpi-webapps">—</div><div class="kpi-icon">&#127760;</div></div>' +
-    '<div class="kpi-tile"><div class="kpi-label">APIs</div><div class="kpi-value" id="kpi-apis">—</div><div class="kpi-icon">&#128268;</div></div>' +
-    '<div class="kpi-tile"><div class="kpi-label">Servers</div><div class="kpi-value" id="kpi-servers">—</div><div class="kpi-icon">&#128421;</div></div>' +
+    '<div class="kpi-tile"><div class="kpi-label">PNB Domains</div><div class="kpi-value" id="kpi-pnb-count" style="color:#8b1a2f;">—</div><div class="kpi-icon">&#127981;</div></div>' +
+    '<div class="kpi-tile"><div class="kpi-label">3rd-Party</div><div class="kpi-value" id="kpi-3p-count" style="color:#4299e1;">—</div><div class="kpi-icon">&#127760;</div></div>' +
     '<div class="kpi-tile warning"><div class="kpi-label">Expiring Certs</div><div class="kpi-value" id="kpi-expiring">—</div><div class="kpi-icon">&#9888;</div></div>' +
     '<div class="kpi-tile danger"><div class="kpi-label">High-Risk</div><div class="kpi-value" id="kpi-highrisk">—</div><div class="kpi-icon">&#128681;</div></div>' +
     '</div>' +
@@ -265,19 +264,47 @@ function pageAssetInventory() {
     '<div class="panel"><div class="panel-title">Risk Distribution (QR Score 0-100, FR9)</div>' +
     '<canvas id="chart-inv-risk" data-h="140" style="width:100%;display:block;"></canvas></div></div>' +
 
-    '<div class="panel"><div class="panel-title">Asset Inventory with Cryptographic Details (FR6, FR7)</div>' +
+    '<div class="panel">' +
+    /* ── Domain Bucket Switcher ── */
+    '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">' +
+    '<div class="panel-title" style="margin:0;">Asset Inventory with Cryptographic Details (FR6, FR7)</div>' +
+    '<div class="domain-bucket-switcher" id="domain-bucket-switcher" role="group" aria-label="Domain filter">' +
+    '  <div class="dbs-track"><div class="dbs-pill" id="dbs-pill"></div></div>' +
+    '  <button class="dbs-btn active" data-bucket="all"    onclick="setDomainBucket(this,\'all\')">All Domains</button>' +
+    '  <button class="dbs-btn"        data-bucket="pnb"    onclick="setDomainBucket(this,\'pnb\')">&#127981; PNB</button>' +
+    '  <button class="dbs-btn"        data-bucket="third"  onclick="setDomainBucket(this,\'third\')">&#127760; 3rd-Party</button>' +
+    '</div>' +
+    '</div>' +
+    /* ── Filters row ── */
     '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">' +
     '<div class="search-wrap" style="flex:1;min-width:200px;margin:0;"><span class="search-icon">&#128269;</span><input class="search-input" id="inv-search" placeholder="Search name, URL, IP..." oninput="filterInventory()"></div>' +
     '<select id="inv-risk-filter" class="form-select" style="width:140px;" onchange="filterInventory()"><option value="">All Risks</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option></select>' +
     '<select id="inv-cert-filter" class="form-select" style="width:140px;" onchange="filterInventory()"><option value="">All Certs</option><option>Valid</option><option>Expiring</option><option>Expired</option></select>' +
-    '<select id="inv-bucket-filter" class="form-select" style="width:150px;" onchange="filterInventory()"><option value="">All Buckets</option><option>Elite-PQC</option><option>Standard</option><option>Legacy</option><option>Critical</option></select>' +
+    '<select id="inv-bucket-filter" class="form-select" style="width:150px;" onchange="filterInventory()"><option value="">All PQC Buckets</option><option>Elite-PQC</option><option>Standard</option><option>Legacy</option><option>Critical</option></select>' +
     '</div>' +
-    '<div class="table-wrap"><table class="data-table"><thead><tr><th>Asset Name</th><th>URL</th><th>IPv4</th><th>Type</th><th>Owner</th><th>Key Size</th><th>Cert</th><th>PQC Bucket</th><th>QR Score</th><th>Risk</th><th>Last Scan</th></tr></thead>' +
-    '<tbody id="inv-tbody"><tr><td colspan="11" style="text-align:center;padding:24px;color:#aaa;">Loading assets...</td></tr></tbody>' +
+    '<div class="table-wrap"><table class="data-table"><thead><tr><th>Asset Name</th><th>Domain Group</th><th>URL</th><th>IPv4</th><th>Key Size</th><th>Cert</th><th>PQC Bucket</th><th>QR Score</th><th>Risk</th><th>Last Scan</th></tr></thead>' +
+    '<tbody id="inv-tbody"><tr><td colspan="10" style="text-align:center;padding:24px;color:#aaa;">Loading assets...</td></tr></tbody>' +
     '</table></div></div>';
 }
 
 var _allInventory = [];
+var _inv_domainFilter = 'all'; /* 'all' | 'pnb' | 'third' */
+
+/* PNB-owned domain patterns — extend this list as needed */
+var _PNB_PATTERNS = [
+  /\.pnb\.co\.in$/i, /^pnb\.co\.in$/i,
+  /\.netpnb\.com$/i, /^netpnb\.com$/i,
+  /\.pnbindia\.in$/i, /^pnbindia\.in$/i,
+  /pnbhousing/i, /punjab.*national.*bank/i,
+  /pnbmetlife/i, /\.pnb\./i
+];
+
+function isPNBDomain(urlOrName) {
+  var s = String(urlOrName || '').toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/.*$/, '');
+  return _PNB_PATTERNS.some(function(re) { return re.test(s); });
+}
 
 function initAssetInventory() {
   QSR.drawDonut('chart-inv-types', [
@@ -294,16 +321,22 @@ function initAssetInventory() {
     {label:'Low',value:0,color:'#48bb78'}
   ]);
 
+  /* Restore domain filter to 'all' on page load */
+  _inv_domainFilter = 'all';
+  /* Animate pill to first position after DOM is ready */
+  setTimeout(function() { _moveDomainPill('all'); }, 50);
+
   var dataSource = window.QSR_DataLayer ? window.QSR_DataLayer.fetchAssets() : Promise.resolve([]);
   dataSource.then(function(assets) {
     _allInventory = assets;
+    var pnbAssets   = assets.filter(function(a) { return isPNBDomain(a.url || a.name); });
+    var thirdAssets = assets.filter(function(a) { return !isPNBDomain(a.url || a.name); });
     var setEl = function(id, v){ var el = document.getElementById(id); if(el) el.textContent = v; };
-    setEl('kpi-total',    assets.length);
-    setEl('kpi-webapps',  assets.filter(function(a){ return a.type === 'Web App'; }).length);
-    setEl('kpi-apis',     assets.filter(function(a){ return a.type === 'API Gateway'; }).length);
-    setEl('kpi-servers',  assets.filter(function(a){ return a.type && a.type.includes('Server'); }).length);
-    setEl('kpi-expiring', assets.filter(function(a){ return a.cert === 'Expiring' || a.cert === 'Expired'; }).length);
-    setEl('kpi-highrisk', assets.filter(function(a){ return a.risk === 'Critical' || a.risk === 'High'; }).length);
+    setEl('kpi-total',     assets.length);
+    setEl('kpi-pnb-count', pnbAssets.length);
+    setEl('kpi-3p-count',  thirdAssets.length);
+    setEl('kpi-expiring',  assets.filter(function(a){ return a.cert === 'Expiring' || a.cert === 'Expired'; }).length);
+    setEl('kpi-highrisk',  assets.filter(function(a){ return a.risk === 'Critical' || a.risk === 'High'; }).length);
     QSR.drawDonut('chart-inv-types', [
       {label:'Web Apps',value:assets.filter(function(a){ return a.type === 'Web App'; }).length,color:'#4299e1'},
       {label:'APIs',value:assets.filter(function(a){ return a.type === 'API Gateway'; }).length,color:'#48bb78'},
@@ -325,23 +358,25 @@ function renderInventoryTable(assets) {
   var tbody = document.getElementById('inv-tbody');
   if (!tbody) return;
   if (!assets || !assets.length) {
-    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;color:#aaa;">No assets found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:#aaa;">No assets found in this group.</td></tr>';
     return;
   }
   var riskCls = {Critical:'badge-critical',High:'badge-high',Medium:'badge-medium',Low:'badge-low'};
   var certCls = {Valid:'badge-valid',Expiring:'badge-expiring',Expired:'badge-expired'};
   var bucketCls = {'Elite-PQC':'badge-ok',Standard:'badge-info',Legacy:'badge-warn',Critical:'badge-danger'};
   tbody.innerHTML = assets.map(function(a) {
+    var isPNB = isPNBDomain(a.url || a.name);
     var score = a.qrScore !== undefined ? a.qrScore : (a.risk === 'Critical' ? 15 : a.risk === 'High' ? 35 : a.risk === 'Medium' ? 55 : 80);
     var scoreColor = score >= 76 ? '#48bb78' : score >= 51 ? '#ecc94b' : score >= 26 ? '#ed8936' : '#e53e3e';
     var keyLen = a.key || 2048;
     var weakKey = keyLen < 2048;
-    return '<tr>' +
+    return '<tr class="inv-row-anim">' +
       '<td style="font-weight:600;">' + (a.name || '—') + '</td>' +
+      '<td>' + (isPNB
+        ? '<span class="domain-badge domain-pnb">&#127981; PNB</span>'
+        : '<span class="domain-badge domain-third">&#127760; 3rd-Party</span>') + '</td>' +
       '<td><a href="' + (a.url||'#') + '" target="_blank" style="font-size:12px;">' + (a.url||'—') + '</a></td>' +
       '<td style="font-family:monospace;font-size:12px;">' + (a.ipv4||'—') + '</td>' +
-      '<td style="font-size:12px;">' + (a.type||'—') + '</td>' +
-      '<td style="font-size:12px;">' + (a.owner||'—') + '</td>' +
       '<td style="font-weight:700;color:' + (weakKey?'#e53e3e':'#48bb78') + ';">' + keyLen + '-bit' + (weakKey?' &#9888;':'') + '</td>' +
       '<td><span class="badge ' + (certCls[a.cert]||'badge-valid') + '">' + (a.cert||'Valid') + '</span></td>' +
       '<td><span class="badge ' + (bucketCls[a.pqcBucket]||'badge-info') + '">' + (a.pqcBucket||'Unknown') + '</span></td>' +
@@ -350,6 +385,17 @@ function renderInventoryTable(assets) {
       '<td style="font-size:11px;color:#888;">' + (a.lastScan||'Never') + '</td>' +
       '</tr>';
   }).join('');
+  /* Stagger-in animation */
+  var rows = tbody.querySelectorAll('.inv-row-anim');
+  rows.forEach(function(row, i) {
+    row.style.opacity = '0';
+    row.style.transform = 'translateY(8px)';
+    setTimeout(function() {
+      row.style.transition = 'opacity 0.22s ease, transform 0.22s ease';
+      row.style.opacity = '1';
+      row.style.transform = 'translateY(0)';
+    }, i * 35);
+  });
 }
 
 window.filterInventory = function() {
@@ -358,10 +404,36 @@ window.filterInventory = function() {
   var c = document.getElementById('inv-cert-filter')?.value||'';
   var b = document.getElementById('inv-bucket-filter')?.value||'';
   renderInventoryTable(_allInventory.filter(function(a) {
+    /* Domain bucket filter */
+    var bucket = _inv_domainFilter || 'all';
+    if (bucket === 'pnb'   && !isPNBDomain(a.url || a.name)) return false;
+    if (bucket === 'third' &&  isPNBDomain(a.url || a.name)) return false;
     return (!q || ((a.name||'')+(a.url||'')+(a.ipv4||'')).toLowerCase().includes(q)) &&
            (!r || a.risk === r) && (!c || a.cert === c) && (!b || a.pqcBucket === b);
   }));
 };
 
+/* ── Domain Bucket Switcher animated pill ── */
+function _moveDomainPill(bucket) {
+  var switcher = document.getElementById('domain-bucket-switcher');
+  if (!switcher) return;
+  var pill = document.getElementById('dbs-pill');
+  var btns = switcher.querySelectorAll('.dbs-btn');
+  btns.forEach(function(btn) {
+    var active = btn.getAttribute('data-bucket') === bucket;
+    btn.classList.toggle('active', active);
+    if (active && pill) {
+      var bRect = btn.getBoundingClientRect();
+      var sRect = switcher.getBoundingClientRect();
+      pill.style.left   = (bRect.left - sRect.left) + 'px';
+      pill.style.width  = bRect.width + 'px';
+      pill.style.height = bRect.height + 'px';
+    }
+  });
+}
 
-
+window.setDomainBucket = function(btn, bucket) {
+  _inv_domainFilter = bucket;
+  _moveDomainPill(bucket);
+  filterInventory();
+};

@@ -1030,3 +1030,89 @@ canvas { max-width: 100% !important; }
 
 /* Button overflow guard */
 .page-header .btn-export, .page-header button { white-space: nowrap; flex-shrink: 0; }
+
+/* ===============================================================
+   DOMAIN BUCKET SWITCHER - Animated pill toggle
+   =============================================================== */
+.domain-bucket-switcher {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  background: rgba(139,26,47,0.06);
+  border: 1px solid rgba(139,26,47,0.15);
+  border-radius: 10px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+/* Sliding pill (background) */
+.dbs-track {
+  position: absolute;
+  inset: 3px;
+  pointer-events: none;
+  z-index: 0;
+}
+.dbs-pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 33.33%;
+  background: var(--crimson, #8b1a2f);
+  border-radius: 7px;
+  transition: left 0.28s cubic-bezier(0.34,1.2,0.64,1), width 0.28s cubic-bezier(0.34,1.2,0.64,1);
+  box-shadow: 0 2px 8px rgba(139,26,47,0.35);
+}
+
+/* Buttons */
+.dbs-btn {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  padding: 7px 14px;
+  font-family: 'Exo 2', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--crimson, #8b1a2f);
+  cursor: pointer;
+  transition: color 0.2s;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+.dbs-btn.active {
+  color: #fff;
+}
+.dbs-btn:hover:not(.active) {
+  background: rgba(139,26,47,0.08);
+}
+
+/* Domain group badges in the table */
+.domain-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+.domain-pnb {
+  background: rgba(139,26,47,0.1);
+  color: #8b1a2f;
+  border: 1px solid rgba(139,26,47,0.25);
+}
+.domain-third {
+  background: rgba(66,153,225,0.1);
+  color: #2b6cb0;
+  border: 1px solid rgba(66,153,225,0.25);
+}
+
+/* Row entrance animation */
+.inv-row-anim {
+  will-change: opacity, transform;
+}
