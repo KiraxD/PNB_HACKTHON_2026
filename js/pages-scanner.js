@@ -85,15 +85,15 @@ QSR.pages.scanner = function (container) {
 
   <!-- Animated Progress -->
   <div id="scan-progress" style="display:none;margin-top:14px;">
+    <div class="progress-wrap" style="margin-bottom:8px;">
+      <div id="scan-progress-bar" style="height:4px;background:linear-gradient(90deg,#8b1a2f,#4299e1);border-radius:2px;width:0%;transition:width 0.4s ease;"></div>
+    </div>
     <div class="scan-stages" id="scan-stages">
       ${['DNS Resolution', 'TLS Handshake', 'Cipher Harvest', 'Certificate Parse', 'Quantum Assessment'].map((s, i) =>
     `<div class="scan-stage" id="stage-${i}"><span class="stage-dot"></span>${s}</div>`
   ).join('')}
     </div>
-    <div class="progress-wrap" style="margin-top:8px;">
-      <div id="scan-progress-bar" style="height:4px;background:linear-gradient(90deg,#8b1a2f,#4299e1);border-radius:2px;width:0%;transition:width 0.4s ease;"></div>
-    </div>
-    <div id="scan-status-msg" style="font-size:12px;color:#48bb78;margin-top:6px;text-align:center;font-family:'JetBrains Mono',monospace;"></div>
+    <div id="scan-status-msg" style="font-size:12px;color:#48bb78;margin-top:8px;text-align:center;font-family:'JetBrains Mono',monospace;"></div>
   </div>
 
   <!-- Results -->
