@@ -1138,3 +1138,26 @@ canvas { max-width: 100% !important; }
 
 /* Domain Portfolio chart panel */
 #chart-home-domains { display: block; }
+
+/* ===============================================================
+   SYNC BADGE — animated green dot on nav items after a scan
+   =============================================================== */
+.sync-badge {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 9px;
+  height: 9px;
+  background: #48bb78;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(72, 187, 120, 0.7);
+  animation: sync-pulse 1.4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 10;
+}
+@keyframes sync-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(72,187,120,0.7); }
+  70%  { box-shadow: 0 0 0 7px rgba(72,187,120,0); }
+  100% { box-shadow: 0 0 0 0 rgba(72,187,120,0); }
+}
+

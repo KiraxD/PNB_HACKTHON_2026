@@ -67,17 +67,60 @@ navigateTo = function(page) {
 };
 window.navigateTo = navigateTo;
 
-window.addEventListener('qsr:data-sync', function() {
-  var page = window._currentPage;
-  if (!page) return;
-  if (page === 'scanner') return;
-  if (!ROUTES[page]) return;
-  try {
-    navigateTo(page);
-  } catch (e) {
-    console.warn('[Router] Sync refresh failed:', e.message);
-  }
+/* ── Sync refresh registry ────────────────────────────────────────────
+   Each page registers a lightweight "data-only" refresh function so
+   data can be updated without re-building the entire DOM.
+   When a scan completes the active tab re-fetches; all others get a
+   green pulse badge on the sidebar nav item.
+──────────────────────────────────────────────────────────────────── */
+var _syncRefreshFns = {};
+
+function registerPageRefresh(page, fn) {
+  _syncRefreshFns[page] = fn;
+}
+
+function _pulseNavBadge(page) {
+  var navItem = document.querySelector('.nav-item[data-page="' + page + '"]');
+  if (!navItem) return;
+  if (navItem.querySelector('.sync-badge')) return; /* already pulsing */
+  var badge = document.createElement('span');
+  badge.className = 'sync-badge';
+  badge.title = 'New scan data available';
+  navItem.style.position = 'relative';
+  navItem.appendChild(badge);
+}
+
+function _clearNavBadge(page) {
+  var navItem = document.querySelector('.nav-item[data-page="' + page + '"]');
+  if (!navItem) return;
+  var badge = navItem.querySelector('.sync-badge');
+  if (badge) badge.remove();
+}
+
+window.addEventListener('qsr:data-sync', function(e) {
+  var active = window._currentPage;
+  var affected = ['home', 'asset-inventory', 'cbom', 'pqc-posture', 'cyber-rating', 'audit-log'];
+  affected.forEach(function(page) {
+    if (page === active) {
+      /* Active tab: quietly re-fetch and patch the DOM */
+      var fn = _syncRefreshFns[page];
+      if (fn) {
+        try { fn(e && e.detail); } catch(err) {}
+      }
+    } else {
+      /* Inactive tab: mark it as having fresh data */
+      _pulseNavBadge(page);
+    }
+  });
 });
+
+/* Wrap navigateTo to clear badges when the user lands on a page */
+var _origNavigate2 = navigateTo;
+navigateTo = function(page) {
+  _clearNavBadge(page);
+  _origNavigate2(page);
+};
+window.navigateTo = navigateTo;
 
 /* ======================================================
    HOME PAGE
@@ -137,6 +180,95 @@ function kpiCard(label, value, color, desc, id) {
     '<div ' + (id ? 'id="' + id + '"' : '') + ' style="font-family:Rajdhani;font-size:30px;font-weight:700;color:' + color + ';line-height:1.1;margin:4px 0;">' + value + '</div>' +
     '<div style="font-size:11px;color:#aaa;">' + desc + '</div>' +
     '</div>';
+}
+
+/* Lightweight data-only refresh for the Home dashboard.
+   Called directly by the sync event when the home page is active. */
+function refreshHomeData() {
+  if (!window.QSR_DataLayer) return;
+  var DL = window.QSR_DataLayer;
+  var setEl = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
+
+  /* Refresh audit feed */
+  DL.fetchAuditLog(8).then(function(rows) {
+    if (!rows || !rows.length) return;
+    var feed = document.getElementById('home-audit-feed');
+    if (!feed) return;
+    feed.innerHTML = rows.map(function(s) {
+      var dot = (s.msg||'').toUpperCase().match(/VULN|FAIL|WEAK|POLICY/) ? 'critical' :
+                (s.msg||'').toUpperCase().match(/WARN|EXPIR/) ? 'warning' : 'info';
+      return '<div class="alert-item"><div class="alert-dot ' + dot + '"></div>' +
+        '<div><div style="font-size:13px;font-weight:600;color:#1a1a2e;">' + (s.msg||'—') + '</div>' +
+        '<div style="font-size:11px;color:#888;">' + (s.time||'—') + '</div></div></div>';
+    }).join('') +
+      '<br><a style="font-size:13px;color:#8b1a2f;font-weight:600;cursor:pointer;" onclick="navigateTo(\'audit-log\')">View Full Audit Log &rarr;</a>';
+  });
+
+  Promise.all([
+    DL.fetchAssets(),
+    DL.fetchCyberRating(),
+    DL.fetchPQCScores(),
+    DL.fetchCBOM()
+  ]).then(function(results) {
+    var assets = results[0] || [];
+    var rating = results[1] || {};
+    var pqc    = results[2] || {};
+    var total  = assets.length || 1;
+    var pnbAssets   = assets.filter(function(a) { return isPNBDomain(a.url || a.name); });
+    var thirdAssets = assets.filter(function(a) { return !isPNBDomain(a.url || a.name); });
+    var riskC  = assets.filter(function(a){ return (a.qrScore||0) <= 25; }).length;
+    var riskH  = assets.filter(function(a){ var s=a.qrScore||0; return s>=26&&s<=50; }).length;
+    var riskM  = assets.filter(function(a){ var s=a.qrScore||0; return s>=51&&s<=75; }).length;
+    var riskR  = assets.filter(function(a){ return (a.qrScore||0) >= 76; }).length;
+    var tls13  = assets.filter(function(a){ return (a.tls||'').includes('1.3'); }).length;
+    var tls12  = assets.filter(function(a){ return (a.tls||'').includes('1.2'); }).length;
+    var tls11  = assets.filter(function(a){ return (a.tls||'').includes('1.1'); }).length;
+    var tls10  = assets.filter(function(a){ return (a.tls||'').includes('1.0'); }).length;
+    var avgQR  = Number(rating.enterpriseScore) || 0;
+    var pqcReadyPct = pqc.elitePct !== undefined ? pqc.elitePct : 0;
+    var critCount   = pqc.criticalApps !== undefined ? pqc.criticalApps : riskC;
+
+    setEl('home-kpi-assets',   assets.length);
+    setEl('home-kpi-pnb',      pnbAssets.length);
+    setEl('home-kpi-third',    thirdAssets.length);
+    setEl('home-kpi-score',    avgQR + '/100');
+    setEl('home-kpi-pqc',      pqcReadyPct + '%');
+    setEl('home-kpi-critical', critCount);
+
+    var maxRisk = Math.max(riskC, riskH, riskM, riskR, 1);
+    function setPB(id, pfId, count) {
+      setEl(id, count + ' assets');
+      var pf = document.getElementById(pfId);
+      if (pf) { pf.style.transition = 'width 0.7s ease'; pf.style.width = Math.round(count / maxRisk * 100) + '%'; }
+    }
+    setPB('home-pb-critical', 'home-pf-critical', riskC);
+    setPB('home-pb-high',     'home-pf-high',     riskH);
+    setPB('home-pb-moderate', 'home-pf-moderate', riskM);
+    setPB('home-pb-ready',    'home-pf-ready',    riskR);
+
+    QSR.drawBars('chart-home-risk', [
+      {label:'0-25 Critical', value:riskC, color:'#e53e3e'},
+      {label:'26-50 High',    value:riskH, color:'#ed8936'},
+      {label:'51-75 Mod',     value:riskM, color:'#ecc94b'},
+      {label:'76-100 PQC',   value:riskR, color:'#48bb78'}
+    ]);
+    QSR.drawDonut('chart-home-pqc', [
+      {label:'PQC-Ready', value: assets.filter(function(a){ return a.pqcBucket==='Elite-PQC'; }).length, color:'#48bb78'},
+      {label:'At Risk',   value: assets.filter(function(a){ return a.pqcBucket!=='Elite-PQC'; }).length, color:'#e53e3e'}
+    ], pqcReadyPct + '%', 'Ready');
+    QSR.drawBars('chart-home-tls', [
+      {label:'TLS 1.3', value:tls13, color:'#48bb78'},
+      {label:'TLS 1.2', value:tls12, color:'#ecc94b'},
+      {label:'TLS 1.1', value:tls11, color:'#ed8936'},
+      {label:'TLS 1.0', value:tls10, color:'#e53e3e'}
+    ]);
+    QSR.drawDonut('chart-home-domains', [
+      {label:'PNB',       value:pnbAssets.length,   color:'#8b1a2f'},
+      {label:'3rd-Party', value:thirdAssets.length, color:'#4299e1'}
+    ], assets.length + '', 'Domains');
+    setEl('home-split-pnb',   pnbAssets.length);
+    setEl('home-split-third', thirdAssets.length);
+  });
 }
 
 function initHome() {
@@ -265,6 +397,9 @@ function initHome() {
   }).catch(function(e) {
     console.warn('[Home] Live data fetch error:', e.message);
   });
+
+  /* Register this page's live refresh fn for qsr:data-sync */
+  registerPageRefresh('home', refreshHomeData);
 }
 
 
@@ -388,6 +523,20 @@ function initAssetInventory() {
     ]);
     renderInventoryTable(assets);
   });
+
+  /* Register refresh fn for live sync */
+  registerPageRefresh('asset-inventory', function() {
+    if (!window.QSR_DataLayer) return;
+    /* Re-fetch assets & patch table/charts without rebuilding HTML */
+    _allInventory = [];
+    initAssetInventory();
+  });
+
+  /* Register full re-renders for other tabs (they handle their own data via their init fns) */
+  registerPageRefresh('cbom',        function() { if(window.QSR&&window.QSR.pages&&window.QSR.pages.cbom) window.QSR.pages.cbom(document.getElementById('page-content')); });
+  registerPageRefresh('pqc-posture', function() { if(window.QSR&&window.QSR.pages&&window.QSR.pages.pqc)  window.QSR.pages.pqc(document.getElementById('page-content')); });
+  registerPageRefresh('cyber-rating',function() { if(window.initCyberRating) window.initCyberRating(); });
+  registerPageRefresh('audit-log',   function() { if(window.QSR&&window.QSR.pages&&window.QSR.pages.auditlog) window.QSR.pages.auditlog(document.getElementById('page-content')); });
 }
 
 function renderInventoryTable(assets) {
