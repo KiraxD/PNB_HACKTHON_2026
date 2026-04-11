@@ -7,7 +7,7 @@
 var ROUTES = {
   'home':            { title:'Dashboard',        init: initHome            },
   'asset-inventory': { title:'Asset Inventory',  init: initAssetInventory  },
-  'asset-discovery': { title:'Asset Discovery',  init: function(){ var c=document.getElementById('main-content')||document.querySelector('.fade-in'); if(window.QSR&&window.QSR.pages&&window.QSR.pages.discovery) window.QSR.pages.discovery(document.getElementById('page-content')); } },
+  'asset-discovery': { title:'Asset Discovery & Scanner', init: function(){ if(window.QSR&&window.QSR.pages&&window.QSR.pages.unifiedScanner) window.QSR.pages.unifiedScanner(document.getElementById('page-content')); } },
   'cbom':            { title:'CBOM',             init: function(){ if(window.QSR&&window.QSR.pages&&window.QSR.pages.cbom) window.QSR.pages.cbom(document.getElementById('page-content')); } },
   'pqc-posture':     { title:'Posture of PQC',   init: function(){ if(window.QSR&&window.QSR.pages&&window.QSR.pages.pqc) window.QSR.pages.pqc(document.getElementById('page-content')); } },
   'cyber-rating':    { title:'Cyber Rating',     init: function(){ if(window.initCyberRating) window.initCyberRating(); } },
@@ -21,7 +21,7 @@ var ROUTES = {
 var PAGE_HTML = {
   'home':            pageHome,
   'asset-inventory': pageAssetInventory,
-  'asset-discovery': function(){ return window._discoveryPage   ? window._discoveryPage()   : '<p>Loading...</p>'; },
+  'asset-discovery': function(){ return '<div id="page-content"></div>'; },
   'cbom':            function(){ return window._cbomPage         ? window._cbomPage()         : '<p>Loading...</p>'; },
   'pqc-posture':     function(){ return window._pqcPage          ? window._pqcPage()          : '<p>Loading...</p>'; },
   'cyber-rating':    function(){ return window._cyberRatingPage  ? window._cyberRatingPage()  : '<p>Loading...</p>'; },

@@ -1,4 +1,4 @@
-﻿/* pages-discovery.js — Asset Discovery (FR4, FR5, FR6, FR7)
+/* pages-discovery.js — Asset Discovery (FR4, FR5, FR6, FR7)
    Live Supabase data with tabbed view */
 
 window.QSR = window.QSR || {};
@@ -155,16 +155,10 @@ QSR._renderDiscSoftware = function(sw) {
     </table>`;
 };
 
-QSR._runScan = async function() {
-  if (!window.QSR_SUPABASE_READY) { alert('Log in with a live Supabase session to run discovery scans.'); return; }
-  const btn = event.target;
-  btn.textContent = '⟳ Scanning...';
-  btn.disabled = true;
-  await new Promise(r => setTimeout(r, 2000));
-  /* Log scan event */
-  if (window.QSR_DataLayer) {
-    await window.QSR_DataLayer.logScanEvent('All PNB Assets — Manual Trigger');
+QSR._runScan = function() {
+  if (typeof navigateTo === 'function') {
+    navigateTo('scanner');
+  } else {
+    window.location.hash = '#scanner';
   }
-  btn.textContent = '✓ Scan Complete';
-  setTimeout(() => { btn.textContent = '▶ Run Scan'; btn.disabled = false; }, 2000);
 };
