@@ -293,17 +293,13 @@ function pageAssetInventory() {
     '<div class="panel"><div class="panel-title">Risk Distribution (QR Score 0-100, FR9)</div>' +
     '<canvas id="chart-inv-risk" data-h="140" style="width:100%;display:block;"></canvas></div></div>' +
 
-    '<div class="panel">' +
-    /* ── Domain Bucket Switcher ── */
-    '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">' +
-    '<div class="panel-title" style="margin:0;">Asset Inventory with Cryptographic Details (FR6, FR7)</div>' +
-    '<div class="domain-bucket-switcher" id="domain-bucket-switcher" role="group" aria-label="Domain filter">' +
-    '  <div class="dbs-track"><div class="dbs-pill" id="dbs-pill"></div></div>' +
-    '  <button class="dbs-btn active" data-bucket="all"    onclick="setDomainBucket(this,\'all\')">All Domains</button>' +
-    '  <button class="dbs-btn"        data-bucket="pnb"    onclick="setDomainBucket(this,\'pnb\')">&#127981; PNB</button>' +
-    '  <button class="dbs-btn"        data-bucket="third"  onclick="setDomainBucket(this,\'third\')">&#127760; 3rd-Party</button>' +
+    '<div class="tab-nav" style="margin-top:18px;">' +
+    '  <button class="tab-btn active" data-bucket="all"    onclick="setDomainBucket(this,\'all\')">All Domains</button>' +
+    '  <button class="tab-btn"        data-bucket="pnb"    onclick="setDomainBucket(this,\'pnb\')">&#127981; PNB Domains</button>' +
+    '  <button class="tab-btn"        data-bucket="third"  onclick="setDomainBucket(this,\'third\')">&#127760; 3rd-Party Targets</button>' +
     '</div>' +
-    '</div>' +
+    '<div class="panel" style="margin-top:0;border-top-left-radius:0;">' +
+    '<div class="panel-title" style="margin-bottom:14px;">Asset Inventory with Cryptographic Details (FR6, FR7)</div>' +
     /* ── Filters row ── */
     '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">' +
     '<div class="search-wrap" style="flex:1;min-width:200px;margin:0;"><span class="search-icon">&#128269;</span><input class="search-input" id="inv-search" placeholder="Search name, URL, IP..." oninput="filterInventory()"></div>' +
@@ -352,8 +348,6 @@ function initAssetInventory() {
 
   /* Restore domain filter to 'all' on page load */
   _inv_domainFilter = 'all';
-  /* Animate pill to first position after DOM is ready */
-  setTimeout(function() { _moveDomainPill('all'); }, 50);
 
   var dataSource = window.QSR_DataLayer ? window.QSR_DataLayer.fetchAssets() : Promise.resolve([]);
   dataSource.then(function(assets) {
@@ -455,27 +449,11 @@ window.filterInventory = function() {
   }));
 };
 
-/* ── Domain Bucket Switcher animated pill ── */
-function _moveDomainPill(bucket) {
-  var switcher = document.getElementById('domain-bucket-switcher');
-  if (!switcher) return;
-  var pill = document.getElementById('dbs-pill');
-  var btns = switcher.querySelectorAll('.dbs-btn');
-  btns.forEach(function(btn) {
-    var active = btn.getAttribute('data-bucket') === bucket;
-    btn.classList.toggle('active', active);
-    if (active && pill) {
-      var bRect = btn.getBoundingClientRect();
-      var sRect = switcher.getBoundingClientRect();
-      pill.style.left   = (bRect.left - sRect.left) + 'px';
-      pill.style.width  = bRect.width + 'px';
-      pill.style.height = bRect.height + 'px';
-    }
-  });
-}
-
 window.setDomainBucket = function(btn, bucket) {
   _inv_domainFilter = bucket;
-  _moveDomainPill(bucket);
+  document.querySelectorAll('.tab-btn[data-bucket]').forEach(function(b) {
+    b.classList.remove('active');
+  });
+  if(btn) btn.classList.add('active');
   filterInventory();
 };
