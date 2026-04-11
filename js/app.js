@@ -7,7 +7,7 @@
 var ROUTES = {
   'home':            { title:'Dashboard',        init: initHome            },
   'asset-inventory': { title:'Asset Inventory',  init: initAssetInventory  },
-  'asset-discovery': { title:'Asset Discovery & Scanner', init: function(){ if(window.QSR&&window.QSR.pages&&window.QSR.pages.unifiedScanner) window.QSR.pages.unifiedScanner(document.getElementById('page-content')); } },
+  'asset-discovery': { title:'Unified Scanner', init: function(){ if(window.QSR&&window.QSR.pages&&window.QSR.pages.unifiedScanner) window.QSR.pages.unifiedScanner(document.getElementById('page-content')); } },
   'cbom':            { title:'CBOM',             init: function(){ if(window.QSR&&window.QSR.pages&&window.QSR.pages.cbom) window.QSR.pages.cbom(document.getElementById('page-content')); } },
   'pqc-posture':     { title:'Posture of PQC',   init: function(){ if(window.QSR&&window.QSR.pages&&window.QSR.pages.pqc) window.QSR.pages.pqc(document.getElementById('page-content')); } },
   'cyber-rating':    { title:'Cyber Rating',     init: function(){ if(window.initCyberRating) window.initCyberRating(); } },
