@@ -49,8 +49,15 @@ QSR.pages.cbom = async function(container) {
     </div>
   </div>
 
+  <!-- Tab-Nav Bucket Switch -->
+  <div class="tab-nav" style="margin-top:14px;">
+    <button class="tab-btn active" data-cbom-bucket="all"   onclick="QSR._setCBOMBucket(this,'all')">All Domains</button>
+    <button class="tab-btn"        data-cbom-bucket="pnb"   onclick="QSR._setCBOMBucket(this,'pnb')">&#127981; PNB Domains</button>
+    <button class="tab-btn"        data-cbom-bucket="third" onclick="QSR._setCBOMBucket(this,'third')">&#127760; 3rd-Party Targets</button>
+  </div>
+
   <!-- Per-App CBOM Table -->
-  <div class="panel" style="margin-top:14px;">
+  <div class="panel" style="margin-top:0;border-top-left-radius:0;">
     <div class="panel-title">📋 Per-Application Cryptographic Inventory</div>
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
       <div class="search-wrap" style="flex:1;min-width:200px;margin:0;">
@@ -127,10 +134,20 @@ QSR.pages.cbom = async function(container) {
   QSR._filterCBOM();
 };
 
+QSR._cbom_domainFilter = 'all';
+
+QSR._setCBOMBucket = function(btn, bucket) {
+  QSR._cbom_domainFilter = bucket;
+  document.querySelectorAll('.tab-btn[data-cbom-bucket]').forEach(b => b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  QSR._filterCBOM();
+};
+
 QSR._filterCBOM = function() {
   var q  = (document.getElementById('cbom-search')?.value || '').toLowerCase();
   var rf = document.getElementById('cbom-risk-filter')?.value || '';
   var tf = document.getElementById('cbom-tls-filter')?.value || '';
+  var bucket = QSR._cbom_domainFilter || 'all';
   var perApp = (window._cbomData?.perApp || []);
 
   var filtered = perApp.filter(p => {
@@ -139,9 +156,13 @@ QSR._filterCBOM = function() {
     var isMed   = p.tls === '1.2';
     var isHigh  = !isWeak && (p.keyLen?.includes('2048')) && p.tls !== '1.3';
     var risk    = isWeak ? 'Critical' : isHigh ? 'High' : isMed ? 'Medium' : 'Low';
+    
+    var isPNB = p.app ? window.isPNBDomain(p.app) : false;
+    var matchBucket = (bucket === 'all') || (bucket === 'pnb' && isPNB) || (bucket === 'third' && !isPNB);
+
     var matchR  = !rf || risk === rf;
     var matchT  = !tf || p.tls === tf;
-    return matchQ && matchR && matchT;
+    return matchQ && matchR && matchT && matchBucket;
   });
 
   var tbody = document.getElementById('cbom-tbody');
@@ -160,8 +181,11 @@ QSR._filterCBOM = function() {
   };
   tbody.innerHTML = filtered.map(p => {
     var isCrit = p.keyLen === 'RSA-1024' || p.keyLen === '1024-bit' || p.tls === '1.0';
+    var isPNB = p.app ? window.isPNBDomain(p.app) : false;
+    var bucketBadge = isPNB ? '<span class="domain-badge domain-pnb" style="font-size:10px;margin-left:6px;">&#127981; PNB</span>' : 
+                              '<span class="domain-badge domain-third" style="font-size:10px;margin-left:6px;">&#127760; 3rd</span>';
     return `<tr style="${isCrit ? 'background:rgba(229,62,62,0.04);border-left:3px solid #e53e3e;' : ''}">
-      <td><strong>${p.app||'—'}</strong></td>
+      <td><strong>${p.app||'—'}</strong> ${bucketBadge}</td>
       <td><code style="color:${p.keyLen?.includes('1024')?'#e53e3e':'inherit'}">${p.keyLen||'—'}</code></td>
       <td style="font-size:11px;max-width:180px;word-break:break-all;">${p.cipher||'—'}</td>
       <td style="font-size:12px;">${p.ca||'—'}</td>

@@ -47,8 +47,13 @@ window._cyberRatingPage = function() {
     </div>
   </div>
 
-  <div class="panel">
+  <div class="panel" style="margin-top:0;border-top-left-radius:0;">
     <div class="panel-title">Per-Asset PQC Score Breakdown</div>
+    <div class="tab-nav" style="margin-bottom:14px;margin-top:-10px;">
+      <button class="tab-btn active" data-cr-bucket="all"   onclick="QSR._setCRBucket(this,'all')">All Domains</button>
+      <button class="tab-btn"        data-cr-bucket="pnb"   onclick="QSR._setCRBucket(this,'pnb')">&#127981; PNB Domains</button>
+      <button class="tab-btn"        data-cr-bucket="third" onclick="QSR._setCRBucket(this,'third')">&#127760; 3rd-Party Targets</button>
+    </div>
     <div style="overflow-x:auto;">
       <table class="data-table" id="asset-score-table" style="min-width:540px;">
         <thead><tr>
@@ -117,31 +122,58 @@ window.initCyberRating = async function() {
     }
   }
 
-  var assetTbody = document.getElementById('asset-score-tbody');
-  if (!assetTbody) return;
-  if (!pqc || !pqc.assets || !pqc.assets.length) {
-    assetTbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#aaa;">No assessed assets available yet.</td></tr>';
-    return;
-  }
+  QSR._cr_domainFilter = 'all';
 
-  var tlsMap = { 'Elite-PQC': '1.3', Standard: '1.3', Legacy: '1.2', Critical: '1.0' };
-  assetTbody.innerHTML = pqc.assets.map(function(a) {
-    var s = a.score || 0;
-    var pct = Math.min(s, 100);
-    var c = s >= 76 ? '#48bb78' : s >= 51 ? '#4299e1' : s >= 26 ? '#ecc94b' : '#e53e3e';
-    var tls = (a.tls && a.tls !== '-') ? a.tls : (tlsMap[a.status] || '1.2');
-    var pqcBadge = a.pqcSupport
-      ? '<span class="badge badge-ok">YES</span>'
-      : '<span class="badge badge-danger">NO</span>';
-    return '<tr>' +
-      '<td style="font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + a.name + '">' + a.name + '</td>' +
-      '<td style="text-align:center;"><span style="font-family:Rajdhani,sans-serif;font-size:22px;font-weight:800;color:' + c + ';">' + s + '</span><span style="font-size:11px;color:#aaa;">/100</span></td>' +
-      '<td><span class="badge" style="background:' + c + '20;color:' + c + ';border:1px solid ' + c + ';white-space:nowrap;">' + a.status + '</span></td>' +
-      '<td style="font-family:monospace;font-size:13px;text-align:center;">' + tls + '</td>' +
-      '<td style="text-align:center;">' + pqcBadge + '</td>' +
-      '<td style="min-width:120px;padding-right:12px;"><div class="progress-bar" style="height:8px;border-radius:4px;background:rgba(0,0,0,0.08);overflow:hidden;"><div style="width:' + pct + '%;height:100%;background:' + c + ';border-radius:4px;transition:width 0.8s ease;"></div></div><div style="font-size:10px;color:#aaa;margin-top:3px;text-align:right;">' + pct + '%</div></td>' +
-      '</tr>';
-  }).join('');
+  window.QSR._setCRBucket = function(btn, bucket) {
+    QSR._cr_domainFilter = bucket;
+    document.querySelectorAll('.tab-btn[data-cr-bucket]').forEach(b => b.classList.remove('active'));
+    if(btn) btn.classList.add('active');
+    QSR._renderCRTable();
+  };
+
+  QSR._crAssets = pqc.assets || [];
+
+  window.QSR._renderCRTable = function() {
+    var assetTbody = document.getElementById('asset-score-tbody');
+    if (!assetTbody) return;
+    
+    var filtered = QSR._crAssets.filter(function(a) {
+      var isPNB = a.name ? window.isPNBDomain(a.name) : false;
+      var bucket = QSR._cr_domainFilter || 'all';
+      return (bucket === 'all') || (bucket === 'pnb' && isPNB) || (bucket === 'third' && !isPNB);
+    });
+
+    if (!filtered || !filtered.length) {
+      assetTbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#aaa;">No assessed assets match the filter.</td></tr>';
+      return;
+    }
+
+    var tlsMap = { 'Elite-PQC': '1.3', Standard: '1.3', Legacy: '1.2', Critical: '1.0' };
+    assetTbody.innerHTML = filtered.map(function(a) {
+      var s = a.score || 0;
+      var pct = Math.min(s, 100);
+      var c = s >= 76 ? '#48bb78' : s >= 51 ? '#4299e1' : s >= 26 ? '#ecc94b' : '#e53e3e';
+      var tls = (a.tls && a.tls !== '-') ? a.tls : (tlsMap[a.status] || '1.2');
+      var pqcBadge = a.pqcSupport
+        ? '<span class="badge badge-ok">YES</span>'
+        : '<span class="badge badge-danger">NO</span>';
+      
+      var isPNB = a.name ? window.isPNBDomain(a.name) : false;
+      var bucketBadge = isPNB ? '<span class="domain-badge domain-pnb" style="font-size:10px;margin-left:6px;">&#127981; PNB</span>' : 
+                                '<span class="domain-badge domain-third" style="font-size:10px;margin-left:6px;">&#127760; 3rd</span>';
+                                
+      return '<tr>' +
+        '<td style="font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + a.name + '">' + a.name + ' ' + bucketBadge + '</td>' +
+        '<td style="text-align:center;"><span style="font-family:Rajdhani,sans-serif;font-size:22px;font-weight:800;color:' + c + ';">' + s + '</span><span style="font-size:11px;color:#aaa;">/100</span></td>' +
+        '<td><span class="badge" style="background:' + c + '20;color:' + c + ';border:1px solid ' + c + ';white-space:nowrap;">' + a.status + '</span></td>' +
+        '<td style="font-family:monospace;font-size:13px;text-align:center;">' + tls + '</td>' +
+        '<td style="text-align:center;">' + pqcBadge + '</td>' +
+        '<td style="min-width:120px;padding-right:12px;"><div class="progress-bar" style="height:8px;border-radius:4px;background:rgba(0,0,0,0.08);overflow:hidden;"><div style="width:' + pct + '%;height:100%;background:' + c + ';border-radius:4px;transition:width 0.8s ease;"></div></div><div style="font-size:10px;color:#aaa;margin-top:3px;text-align:right;">' + pct + '%</div></td>' +
+        '</tr>';
+    }).join('');
+  };
+
+  QSR._renderCRTable();
 };
 
 function _drawCyberGauge(canvasId, score, color) {

@@ -68,8 +68,13 @@ QSR.pages.pqc = async function(container) {
     </div>
   </div>
 
-  <div class="panel">
+  <div class="panel" style="margin-top:0;border-top-left-radius:0;">
     <div class="panel-title">Per-Asset PQC Readiness Score</div>
+    <div class="tab-nav" style="margin-bottom:14px;margin-top:-10px;">
+      <button class="tab-btn active" data-pqc-bucket="all"   onclick="QSR._setPQCBucket(this,'all')">All Domains</button>
+      <button class="tab-btn"        data-pqc-bucket="pnb"   onclick="QSR._setPQCBucket(this,'pnb')">&#127981; PNB Domains</button>
+      <button class="tab-btn"        data-pqc-bucket="third" onclick="QSR._setPQCBucket(this,'third')">&#127760; 3rd-Party Targets</button>
+    </div>
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
       <input id="pqc-search" class="form-input" style="width:200px;" placeholder="Search assets..." oninput="QSR._filterPQC()">
       <select id="pqc-status-filter" class="form-select" style="width:140px;" onchange="QSR._filterPQC()">
@@ -170,11 +175,23 @@ QSR.pages.pqc = async function(container) {
   QSR._renderPQCTable(assets);
 };
 
+QSR._pqc_domainFilter = 'all';
+
+QSR._setPQCBucket = function(btn, bucket) {
+  QSR._pqc_domainFilter = bucket;
+  document.querySelectorAll('.tab-btn[data-pqc-bucket]').forEach(b => b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  QSR._filterPQC();
+};
+
 QSR._filterPQC = function() {
   var q = (document.getElementById('pqc-search')?.value || '').toLowerCase();
   var s = document.getElementById('pqc-status-filter')?.value || '';
+  var bucket = QSR._pqc_domainFilter || 'all';
   QSR._renderPQCTable((window._pqcAssets || []).filter(function(a) {
-    return (!q || (a.name || '').toLowerCase().includes(q)) && (!s || a.status === s);
+    var isPNB = a.name ? window.isPNBDomain(a.name) : false;
+    var matchBucket = (bucket === 'all') || (bucket === 'pnb' && isPNB) || (bucket === 'third' && !isPNB);
+    return (!q || (a.name || '').toLowerCase().includes(q)) && (!s || a.status === s) && matchBucket;
   }));
 };
 
@@ -191,8 +208,11 @@ QSR._renderPQCTable = function(assets) {
   tbody.innerHTML = assets.map(function(a) {
     var s = a.score || 0;
     var c = s >= 76 ? '#48bb78' : s >= 51 ? '#4299e1' : s >= 26 ? '#ecc94b' : '#e53e3e';
+    var isPNB = a.name ? window.isPNBDomain(a.name) : false;
+    var bucketBadge = isPNB ? '<span class="domain-badge domain-pnb" style="font-size:10px;margin-left:6px;">&#127981; PNB</span>' : 
+                              '<span class="domain-badge domain-third" style="font-size:10px;margin-left:6px;">&#127760; 3rd</span>';
     return '<tr style="' + (a.status === 'Critical' ? 'background:rgba(229,62,62,0.04);' : '') + '">' +
-      '<td><strong>' + a.name + '</strong></td>' +
+      '<td><strong>' + a.name + '</strong> ' + bucketBadge + '</td>' +
       '<td style="min-width:180px;"><div style="display:flex;align-items:center;gap:10px;"><div style="flex:1;background:rgba(0,0,0,0.08);border-radius:4px;height:8px;overflow:hidden;"><div style="width:' + s + '%;background:' + c + ';height:8px;border-radius:4px;transition:width 0.8s ease;"></div></div><span style="font-family:Rajdhani,sans-serif;font-size:18px;font-weight:800;color:' + c + ';min-width:40px;">' + s + '</span></div></td>' +
       '<td><span class="badge ' + (statusClass[a.status] || 'badge-info') + '">' + (a.status || 'Unknown') + '</span></td>' +
       '<td>' + (a.pqcSupport ? '<span class="badge badge-ok">YES</span>' : '<span class="badge badge-danger">NO</span>') + '</td>' +
