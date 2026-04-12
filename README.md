@@ -1,55 +1,103 @@
-﻿# QSecure Radar — PNB_HACKTHON_2026
-**Team REAL | KIIT | PSB Hackathon 2026**
+# 🛡️ QSecure Radar
 
-Post-Quantum Cryptographic Assessment Platform for Punjab National Bank.
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-crimson.svg)](LICENSE)
-[![Hackathon](https://img.shields.io/badge/PSB%20Hackathon-2026-gold)](https://github.com/KiraxD/PNB_HACKTHON_2026)
+**Next-Generation Quantum Risk Assessment & Cyber Posture Management Platform**  
+*PNB Hackathon 2026 — Submission*
 
 ---
 
-## What is QSecure Radar?
+## What Is QSecure Radar?
 
-QSecure Radar evaluates internet-facing PNB banking systems for cryptographic resilience against quantum computing threats (Shor's algorithm). It implements all 15 functional requirements from the SRS.
+QSecure Radar is an **agentless, real-time cryptographic intelligence platform** designed to continuously audit the cryptographic posture of financial institution infrastructure and transition them into the **post-quantum era** before Q-Day arrives.
 
-| SRS Requirement | Implementation |
-|----------------|----------------|
-| FR1 — MFA | Supabase Auth + 6-digit OTP |
-| FR2 — RBAC | SOC Analyst / Admin / Compliance roles |
-| FR3 — Zero Trust | RLS policies, JWT sessions, auth guard |
-| FR4 — Asset Discovery | DNS enumeration, domain/IP/software tabs |
-| FR5 — TLS Inspection | TLS version, cipher, key exchange details |
-| FR6 — RSA/ECC Analysis | Key parameter extraction per asset |
-| FR7 — Weak Key Detection | RSA < 2048-bit flagged |
-| FR8 — CBOM | CycloneDX JSON export |
-| FR9 — QR Score (0–100) | Quantum Risk Score per NIST PQC |
-| FR10 — PQC Tiers | Elite-PQC / Standard / Legacy / Critical |
-| FR11 — Quantum Labels | Per-asset security classification |
-| FR12 — Migration Guidance | CRYSTALS-Kyber / Dilithium / SPHINCS+ |
-| FR13 — Re-scanning | Periodic scan scheduling |
-| FR14 — Reports | Executive / Scheduled / On-Demand |
-| FR15 — Audit Log | Real-time Supabase subscription + CSV export |
+It profiles domains entirely from the **outside-in** — no agents, no credentials, no source-code access required.
 
 ---
 
-## Tech Stack
+## 🚀 Platform Modules
 
-- **Frontend:** HTML5 + CSS3 + Vanilla JavaScript (SPA)
-- **Backend:** Supabase (PostgreSQL, Auth, Realtime)
-- **Charts:** Responsive Canvas API (no external chart libraries)
-- **Graph:** D3.js (force-directed asset relationship map)
-- **Fonts:** Rajdhani + Exo 2 (Google Fonts)
+| Module | Description |
+|---|---|
+| **Dashboard** | Real-time KPIs: avg QR score, PQC-ready count, domain split, risk distribution |
+| **Unified Scanner** | Custom 5-stage cryptographic profiling engine (DNS → TLS → Cipher → X.509 → PQC) |
+| **Asset Inventory** | Full cryptographic details per asset; PNB vs. 3rd-Party domain bucketing |
+| **CBOM** | Dynamic Cryptographic Bill of Materials across the enterprise |
+| **PQC Posture** | NIST FIPS 203-aligned quantum readiness tiers (Elite-PQC, Standard, Legacy, Critical) |
+| **Cyber Rating** | Normalized 0–100 enterprise security score per NIST SP 800-131A Rev2 |
+| **Audit Log** | Immutable, zero-trust event provenance for all scan actions |
 
 ---
 
-## Team REAL
+## 🔬 Scanner Engine — Technical Architecture
 
-| Member | Role |
-|--------|------|
-| Reshob Roychoudhury | Team Lead |
-| Shubham | Developer |
-| Payal Majumdar | Tester |
-| Priyadarshini Gupta | Tester |
+The core scanner is a **custom-built, serverless TLS profiling engine** running on **Deno Edge Functions (Supabase)**. It performs:
 
-**Institute:** Kalinga Institute of Industrial Technology (KIIT)
+1. **DNS-over-HTTPS (DoH)** — Cloudflare 1.1.1.1 resolves `A`, `AAAA`, `MX`, `NS`, and `CAA` records
+2. **Raw TCP/TLS Handshake** — `Deno.connectTls()` negotiates the actual protocol version (TLS 1.2 vs 1.3)
+3. **X.509 ASN.1 Extraction** — Parses byte-level certificates to extract Key Type, Key Length, SANs, and CA chain
+4. **Cipher Harvest** — Maps exact cipher suites (e.g., `TLS_AES_256_GCM_SHA384`) and detects deprecated ones
+5. **Quantum Assessment** — Scores the endpoint 0–100 based on NIST FIPS 203 / SP 800-131A heuristics
 
+---
+
+## 📡 Real-Time Cross-Tab Sync
+
+After every scan, a **`qsr:data-sync`** CustomEvent fires and propagates across the entire application:
+
+- **Active tab**: silently re-fetches data and patches DOM in-place (zero flash, zero scroll reset)
+- **Inactive tabs**: receive a pulsing green `.sync-badge` dot on the sidebar nav item, cleared when visited
+
+---
+
+## 🏗️ Technology Stack
+
+| Layer | Technology |
+|---|---|
+| **Frontend** | Vanilla JS, HTML5 Canvas, CSS3 — no framework overhead |
+| **Backend / DB** | Supabase (PostgreSQL + Row Level Security) |
+| **Auth** | Supabase Auth (email/password) |
+| **Edge Compute** | Deno Edge Functions for TLS scanning |
+| **DNS** | Cloudflare DNS-over-HTTPS (1.1.1.1) |
+| **Deployment** | Vercel (zero-config CDN deployment) |
+
+---
+
+## 🔐 PQC Scoring Algorithm
+
+| Score | Tier | Meaning |
+|---|---|---|
+| 76–100 | **Elite-PQC** | Hybrid ML-KEM / Kyber or strong TLS 1.3 + modern key exchange |
+| 51–75 | **Standard** | TLS 1.3, RSA ≥ 2048, no deprecated ciphers |
+| 26–50 | **Legacy** | TLS 1.2, weaker key lengths, some cipher concerns |
+| 0–25 | **Critical** | TLS ≤ 1.1, RC4/3DES, RSA < 2048 — immediate action required |
+
+---
+
+## ⚡ Quick Start (Local Dev)
+
+```bash
+# Clone the repo
+git clone https://github.com/KiraxD/PNB_HACKTHON_2026.git
+cd PNB_HACKTHON_2026
+
+# Add environment variables
+cp .env.example .env.local
+# Edit .env.local with your Supabase URL and Anon Key
+
+# Open dashboard
+open dashboard.html
+```
+
+---
+
+## 📋 Environment Variables
+
+```
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+```
+
+---
+
+## 📄 License
+
+Built for the **PNB Hackathon 2026**. All rights reserved.

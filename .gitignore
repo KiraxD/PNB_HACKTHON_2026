@@ -1,12 +1,22 @@
-﻿# QSecure Radar — Supabase backend keys (never commit these)
-.env.local
-.env
+# QSecure Radar — .gitignore
 
-# Node modules (for seed script)
+# Secrets (never commit these)
+.env
+.env.local
+.env.*.local
+
+# Node
 node_modules/
 package-lock.json
+npm-debug.log*
 
-# OS files
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.py
+
+# OS artifacts
 .DS_Store
 Thumbs.db
 desktop.ini
@@ -16,14 +26,26 @@ desktop.ini
 *.swp
 *.swo
 
-# Logs
+# Logs and temp
 *.log
-npm-debug.log*
-
-# Temp
 .tmp/
 tmp/
+err.txt
 
-# PDF source (large binary)
+# PDFs & large binaries
 *.pdf
+*.pptx
+*.ppt
 
+# Dev/cleanup scripts (not for prod)
+clear-database.js
+clear_database.py
+load-seed.js
+seed-database.js
+generate_ppt.py
+
+# Agent skills (local dev only)
+.agents/
+
+# Supabase temp state
+supabase/.temp/
