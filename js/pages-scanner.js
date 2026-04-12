@@ -49,39 +49,6 @@ QSR.pages.scanner = function (container) {
     </div>
   </div>
 
-  <!-- Asset Target Inventory -->
-  <div class="panel" id="scanner-assets-panel" style="margin-top:18px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="QSR._toggleScannerAssets()">
-      <div class="panel-title" style="margin:0;">🎯 PNB Asset Inventory — Click any asset to scan instantly</div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span id="scanner-assets-badge" style="display:none;font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(139,26,47,0.12);color:#8b1a2f;font-weight:700;"></span>
-        <span id="scanner-assets-chevron" style="font-size:18px;color:#888;transition:transform 0.2s;">▾</span>
-      </div>
-    </div>
-    <div id="scanner-assets-body" style="margin-top:12px;">
-      <!-- Risk filter strip -->
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
-        <span style="font-size:11px;color:#888;letter-spacing:1px;">FILTER:</span>
-        <button class="chip-btn sa-filter-btn active" data-risk="" onclick="QSR._filterScannerAssets(this)">All</button>
-        <button class="chip-btn sa-filter-btn" data-risk="Critical" onclick="QSR._filterScannerAssets(this)" style="border-color:#e53e3e;color:#e53e3e;">🔴 Critical</button>
-        <button class="chip-btn sa-filter-btn" data-risk="High" onclick="QSR._filterScannerAssets(this)" style="border-color:#ed8936;color:#ed8936;">🟡 High</button>
-        <button class="chip-btn sa-filter-btn" data-risk="Medium" onclick="QSR._filterScannerAssets(this)">Medium</button>
-        <button class="chip-btn sa-filter-btn" data-risk="Low" onclick="QSR._filterScannerAssets(this)" style="border-color:#48bb78;color:#48bb78;">🟢 Low</button>
-        <div style="margin-left:auto;" id="scanner-assets-count" style="font-size:12px;color:#888;"></div>
-      </div>
-      <div style="overflow-x:auto;">
-        <table class="data-table" id="scanner-assets-table">
-          <thead><tr>
-            <th>Asset</th><th>URL</th><th>Type</th><th>Key</th>
-            <th>Cert</th><th>PQC Score</th><th>Risk</th><th style="text-align:center;">Scan</th>
-          </tr></thead>
-          <tbody id="scanner-assets-tbody">
-            <tr><td colspan="8" class="loading-cell">Loading assets...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
 
   <!-- Animated Progress -->
   <div id="scan-progress" style="display:none;margin-top:14px;">
@@ -194,6 +161,40 @@ QSR.pages.scanner = function (container) {
       <button class="btn-scan-sm" onclick="QSR._loadDBHistory(true)" style="font-size:11px;">↺ Refresh</button>
     </div>
     <div id="db-history-list"><div style="color:#888;font-size:13px;padding:6px 0;">Loading your scan history...</div></div>
+  </div>
+
+  <!-- Asset Target Inventory -->
+  <div class="panel" id="scanner-assets-panel" style="margin-top:18px;border-top:2px solid rgba(139,26,47,0.25);">
+    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="QSR._toggleScannerAssets()">
+      <div class="panel-title" style="margin:0;">🎯 PNB Asset Inventory — Click any asset to scan instantly</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span id="scanner-assets-badge" style="display:none;font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(139,26,47,0.12);color:#8b1a2f;font-weight:700;"></span>
+        <span id="scanner-assets-chevron" style="font-size:18px;color:#888;transition:transform 0.2s;">▾</span>
+      </div>
+    </div>
+    <div id="scanner-assets-body" style="margin-top:12px;">
+      <!-- Risk filter strip -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
+        <span style="font-size:11px;color:#888;letter-spacing:1px;">FILTER:</span>
+        <button class="chip-btn sa-filter-btn active" data-risk="" onclick="QSR._filterScannerAssets(this)">All</button>
+        <button class="chip-btn sa-filter-btn" data-risk="Critical" onclick="QSR._filterScannerAssets(this)" style="border-color:#e53e3e;color:#e53e3e;">🔴 Critical</button>
+        <button class="chip-btn sa-filter-btn" data-risk="High" onclick="QSR._filterScannerAssets(this)" style="border-color:#ed8936;color:#ed8936;">🟡 High</button>
+        <button class="chip-btn sa-filter-btn" data-risk="Medium" onclick="QSR._filterScannerAssets(this)">Medium</button>
+        <button class="chip-btn sa-filter-btn" data-risk="Low" onclick="QSR._filterScannerAssets(this)" style="border-color:#48bb78;color:#48bb78;">🟢 Low</button>
+        <div style="margin-left:auto;" id="scanner-assets-count" style="font-size:12px;color:#888;"></div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="data-table" id="scanner-assets-table">
+          <thead><tr>
+            <th>Asset</th><th>URL</th><th>Type</th><th>Key</th>
+            <th>Cert</th><th>PQC Score</th><th>Risk</th><th style="text-align:center;">Scan</th>
+          </tr></thead>
+          <tbody id="scanner-assets-tbody">
+            <tr><td colspan="8" class="loading-cell">Loading assets...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>`;
 
   window._scanHistory = window._scanHistory || [];
