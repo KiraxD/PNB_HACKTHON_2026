@@ -1,4 +1,4 @@
-/* pages-scanner.js — Elite TLS/Cipher Scanner (FR4–FR9)
+/* pages-scanner.js — Elite TLS/Cipher Scanner (FR4–FR9) v2.1
    Hacker-terminal UI • Animated stages • Cipher Threat Matrix
    Side-by-side Compare • Vuln Explanation Cards */
 
