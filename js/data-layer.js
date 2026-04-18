@@ -616,6 +616,30 @@ window.QSR_DataLayer = (function () {
     }
   }
 
+  async function updateAssetScanData(host, scanData) {
+    if (!ready()) return false;
+    try {
+      var qHost = host.replace(/^https?:\/\//,'').replace(/\/.*/,'').toLowerCase();
+      var result = await db().from('assets')
+        .update({
+          qr_score: scanData.qr_score,
+          pqc_bucket: scanData.pqc_bucket,
+          key_length: scanData.key_length,
+          cert_status: scanData.cert_status,
+          risk: scanData.risk,
+          last_scan: new Date().toISOString()
+        })
+        .ilike('url', '%' + qHost + '%');
+        
+      if (result.error) throw result.error;
+      clearCache('assets');
+      return true;
+    } catch (e) {
+      console.warn('[DataLayer] updateAssetScanData failed:', e.message);
+      return false;
+    }
+  }
+
   async function syncScanArtifacts(host, result) {
     if (!ready() || !host || !result) return { ok: false, error: 'Backend not ready' };
 
