@@ -959,6 +959,7 @@ window.QSR_DataLayer = (function () {
     logAction: logAction,
     logScanEvent: logScanEvent,
     saveScanResult: saveScanResult,
+    updateAssetScanData: updateAssetScanData,
     fetchScanHistory: fetchScanHistory,
     fetchLastScanForHost: fetchLastScanForHost,
     syncScanArtifacts: syncScanArtifacts,
