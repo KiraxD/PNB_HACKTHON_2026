@@ -1893,7 +1893,14 @@ QSR._loadDBHistory = async function (forceRefresh) {
   var badge = document.getElementById('db-history-badge');
   if (!el) return;
 
-  if (!window.QSR_DataLayer || !window.QSR_SUPABASE_READY) {
+  if (!window.QSR_DataLayer) return;
+
+  var user = null;
+  try {
+    user = window._QSR_USER || JSON.parse(sessionStorage.getItem('qsr_user') || 'null');
+  } catch(e) {}
+  
+  if (!user && !window.QSR_SUPABASE_READY) {
     el.innerHTML = '<div style="color:#888;font-size:12px;padding:6px 0;">⚠ Log in to load your saved scan history.</div>';
     return;
   }
