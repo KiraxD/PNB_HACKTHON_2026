@@ -300,9 +300,12 @@ function initHome() {
 
   /* ── Live audit feed ── */
   DL.fetchAuditLog(8).then(function(rows) {
-    if (!rows || !rows.length) return;
     var feed = document.getElementById('home-audit-feed');
     if (!feed) return;
+    if (!rows || !rows.length) {
+      feed.innerHTML = '<div style="color:#aaa;font-size:13px;padding:8px 0;">No security events recorded yet.</div>';
+      return;
+    }
     feed.innerHTML = rows.map(function(s) {
       var dot = (s.msg||'').toUpperCase().match(/VULN|FAIL|WEAK|POLICY/) ? 'critical' :
                 (s.msg||'').toUpperCase().match(/WARN|EXPIR/) ? 'warning' : 'info';

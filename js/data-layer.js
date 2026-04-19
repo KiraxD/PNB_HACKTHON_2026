@@ -277,17 +277,31 @@ window.QSR_DataLayer = (function () {
     var scores = await query('pqc_scores', { order: 'assessed_at', asc: false });
     var scoreByAssetId = {};
     var scoreByAssetName = {};
-
     scores.forEach(function (row) {
       if (row.asset_id && scoreByAssetId[row.asset_id] == null) scoreByAssetId[row.asset_id] = row.score;
       if (row.asset_name && scoreByAssetName[row.asset_name] == null) scoreByAssetName[row.asset_name] = row.score;
     });
+
+    /* Enrich with CBOM tls_version (indexed by asset_id) */
+    var tlsByAssetId = {};
+    try {
+      var cbomRows = await query('cbom', { order: 'id', asc: false });
+      cbomRows.forEach(function (row) {
+        if (row.asset_id && !tlsByAssetId[row.asset_id]) {
+          tlsByAssetId[row.asset_id] = row.tls_version || '';
+        }
+      });
+    } catch (e) { /* cbom optional */ }
 
     return assets.map(function (asset) {
       var score = asset.qr_score;
       if (score == null && asset.id && scoreByAssetId[asset.id] != null) score = scoreByAssetId[asset.id];
       if (score == null && asset.name && scoreByAssetName[asset.name] != null) score = scoreByAssetName[asset.name];
       if (score == null) score = heuristicAssetScore(asset);
+      /* Inject tls_version from cbom if asset row lacks it */
+      if (!asset.tls_version && asset.id && tlsByAssetId[asset.id]) {
+        asset.tls_version = tlsByAssetId[asset.id];
+      }
       return normalizeAsset(asset, Number(score) || 0);
     });
   }
